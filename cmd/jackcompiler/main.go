@@ -6,7 +6,6 @@ import (
 )
 
 func main() {
-	// Um trecho de código Jack real para testarmos nosso Lexer
 	input := `
 	class Main {
 		function void main() {

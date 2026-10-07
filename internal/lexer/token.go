@@ -13,6 +13,7 @@ const (
 	EOF     = "EOF"
 
 	// Literais e Identificadores
+	KEYWORD      = "KEYWORD"
 	IDENTIFIER   = "IDENTIFIER"
 	INT_CONST    = "INT_CONST"
 	STRING_CONST = "STRING_CONST"
@@ -66,8 +67,8 @@ var keywords = map[string]TokenType{
 
 // LookupIdent verifica se um identificador é uma palavra-chave.
 func LookupIdent(ident string) TokenType {
-	if tok, ok := keywords[ident]; ok {
-		return tok
+	if _, ok := keywords[ident]; ok {
+		return KEYWORD
 	}
 	return IDENTIFIER
 }
