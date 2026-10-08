@@ -107,11 +107,9 @@ func (l *Lexer) NextToken() Token {
 
 	// Tratamento de Strings
 	case '"':
-		tok.Type = STRING_CONST
-		tok.Literal = l.readString()
 		tok.Line = l.line
-		l.readChar() // Consome as aspas de fechamento da string
-		return tok   // Retornamos direto pois a string já avançou os ponteiros
+		tok.Literal, tok.Type = l.readString()
+		return tok
 
 	case 0:
 		tok.Literal = ""
@@ -160,15 +158,26 @@ func (l *Lexer) readNumber() string {
 	return l.input[position:l.position]
 }
 
-func (l *Lexer) readString() string {
+func (l *Lexer) readString() (string, TokenType) {
 	position := l.position + 1 // Pula a aspa dupla de abertura
-	for {
+	l.readChar()
+	for l.ch != '"' && l.ch != 0 && l.ch != '\n' && l.ch != '\r' {
 		l.readChar()
-		if l.ch == '"' || l.ch == 0 {
-			break
-		}
 	}
-	return l.input[position:l.position]
+	literal := l.input[position:l.position]
+	if l.ch == '"' {
+		l.readChar() // Consome as aspas de fechamento
+		return literal, STRING_CONST
+	}
+	// O literal inválido não inclui a quebra de linha. Consome CRLF como uma linha.
+	if l.ch == '\n' || l.ch == '\r' {
+		if l.ch == '\r' && l.peekChar() == '\n' {
+			l.readChar()
+		}
+		l.line++
+		l.readChar()
+	}
+	return literal, ILLEGAL
 }
 
 func (l *Lexer) skipLineComment() {
