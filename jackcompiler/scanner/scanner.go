@@ -58,7 +58,6 @@ func (s *Scanner) advance() rune {
 
 func isDigit(r rune) bool      { return r >= '0' && r <= '9' }
 func isLetter(r rune) bool     { return (r >= 'a' && r <= 'z') || (r >= 'A' && r <= 'Z') || r == '_' }
-func isWhitespace(r rune) bool { return r == ' ' || r == '\t' || r == '\n' || r == '\r' }
 
 // Ruídos, Espaços e Comentários são limpos pelo skipIgnored que vai pular os espaços, tabs e etc...
 // aqui tem como devolver um erro, se um comentário de bloco por exemplo ficar sem fechar
