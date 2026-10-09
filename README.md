@@ -4,7 +4,7 @@ Analisador léxico (scanner) para a linguagem Jack, desenvolvido em Go. Primeira
 
 ## 👥 Equipe
 * **Daniel Nunes Duarte** - Matrícula: [Matrícula aqui]
-* **João Vitor** - Matrícula: [Matrícula aqui]
+* **João Victor Oliveira** - Matrícula: [Matrícula aqui]
 
 ## 💻 Linguagem de Programação
 * **Golang (Go)**
