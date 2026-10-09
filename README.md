@@ -1,10 +1,10 @@
 # JackCompiler
 
-Analisador léxico (scanner) para a linguagem Jack, desenvolvido em Go. Primeira etapa do compilador para a disciplina de Compiladores (baseado no nand2tetris).
+Compilador da linguagem **Jack** (projeto [nand2tetris](https://www.nand2tetris.org/)), desenvolvido em **Go** para a disciplina de Compiladores. Esta é a **Entrega Parcial 1: o analisador léxico (scanner)**. O analisador sintático (parser) será desenvolvido sobre este mesmo repositório nas próximas entregas.
 
 ## 👥 Equipe
 * **Daniel Nunes Duarte** - Matrícula: [Matrícula aqui]
-* **João Victor Oliveira** - Matrícula: [Matrícula aqui]
+* **João Vitor** - Matrícula: [Matrícula aqui]
 
 ## 💻 Linguagem de Programação
 * **Golang (Go)**
