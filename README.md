@@ -7,7 +7,7 @@ Compilador da linguagem **Jack** (projeto [nand2tetris](https://www.nand2tetris.
 * **João Victor Oliveira** - Matrícula: [preencher matrícula]
 
 ## 💻 Linguagem de Programação
-* **Golang (Go)**
+* **Golang (Go)** 
 
 ## ✅ Evidência de validação
 A validação oficial do scanner foi feita com os programas de referência do projeto nand2tetris. O resultado obtido foi:
