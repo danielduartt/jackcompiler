@@ -2,7 +2,7 @@ package scanner
 
 type TokenType int
 
-// Estrutura de um Token <tipo, valor>  
+// Estrutura de um Token <tipo, valor>
 type Token struct {
 	Type  TokenType
 	Value string
@@ -127,7 +127,6 @@ func (t TokenType) String() string {
 	return tokenNames[t]
 }
 
-
 // keywords mapeia cada palavra reservada de Jack ao seu tipo de token.
 var keywords = map[string]TokenType{
 	"class":       CLASS,
@@ -177,7 +176,7 @@ var symbols = map[rune]TokenType{
 	'=': EQ,
 }
 
-/* FORMA ANTIGA DE CATEGORY 
+/* FORMA ANTIGA DE CATEGORY
 // Category devolve o nome da tag XML do nand2tetris para este tipo de token
 // Devolve "" para ILLEGAL e EOF, que não aparecem no XML.
 func (t TokenType) Category() string {
@@ -199,6 +198,7 @@ func (t TokenType) Category() string {
 
 // FORMA NOVA SEM PROBLEMAS (PELO MENOS EU ACHO)
 var categories = map[TokenType]string{}
+
 func init() {
 	for _, t := range keywords {
 		categories[t] = "keyword"
@@ -213,7 +213,8 @@ func init() {
 func (t TokenType) Category() string {
 	return categories[t] // tipo ausente devolve "" (serve para ILLEGAL e EOF)
 }
-// a Cadeia ou Palavra é um identificador ou é reservada? Essa função define isso 
+
+// a Cadeia ou Palavra é um identificador ou é reservada? Essa função define isso
 func lookupIdent(word string) TokenType {
 	// comma-ok: "ok" distingue "chave ausente" de "chave presente com valor zero".
 	if tipo, ok := keywords[word]; ok {

@@ -56,8 +56,8 @@ func (s *Scanner) advance() rune {
 
 // Classificação de caracteres
 
-func isDigit(r rune) bool      { return r >= '0' && r <= '9' }
-func isLetter(r rune) bool     { return (r >= 'a' && r <= 'z') || (r >= 'A' && r <= 'Z') || r == '_' }
+func isDigit(r rune) bool  { return r >= '0' && r <= '9' }
+func isLetter(r rune) bool { return (r >= 'a' && r <= 'z') || (r >= 'A' && r <= 'Z') || r == '_' }
 
 // Ruídos, Espaços e Comentários são limpos pelo skipIgnored que vai pular os espaços, tabs e etc...
 // aqui tem como devolver um erro, se um comentário de bloco por exemplo ficar sem fechar
