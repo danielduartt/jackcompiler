@@ -3,13 +3,8 @@
 Compilador da linguagem **Jack** (projeto [nand2tetris](https://www.nand2tetris.org/)), desenvolvido em **Go** para a disciplina de Compiladores. Esta é a **Entrega Parcial 1: o analisador léxico (scanner)**.
 
 ## 👥 Equipe
-<<<<<<< HEAD
-* **Daniel Nunes Duarte** - Matrícula: [Matrícula aqui]
-* **João Victor Oliveira** - Matrícula: [Matrícula aqui]
-=======
 * **Daniel Nunes Duarte** - Matrícula: [preencher matrícula]
-* **João Vitor** - Matrícula: [preencher matrícula]
->>>>>>> feat/analisador-lexico
+* **João Victor Oliveira** - Matrícula: [preencher matrícula]
 
 ## 💻 Linguagem de Programação
 * **Golang (Go)**
@@ -32,9 +27,6 @@ saindo com sucesso para o pacote do scanner.
 1. Certifique-se de ter o Go instalado (versão 1.18 ou superior).
 2. Clone este repositório:
    ```bash
-<<<<<<< HEAD
-   git clone [https://github.com/danielduartt/jackcompiler]
-=======
    git clone https://github.com/danielduartt/jackcompiler
    ```
 3. Acesse o diretório do módulo:
@@ -53,4 +45,3 @@ saindo com sucesso para o pacote do scanner.
 ## 📌 Observações
 * O diretório de saída padrão é `out/`.
 * Os arquivos gerados seguem o formato XML do projeto nand2tetris e são armazenados no diretório de saída indicado pela CLI.
->>>>>>> feat/analisador-lexico
