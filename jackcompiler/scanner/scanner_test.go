@@ -67,6 +67,8 @@ func TestErros(t *testing.T) {
 		{"bloco não fechado", "/* nunca fecha"},
 		{"string não fechada", "\"sem fim"},
 		{"string quebrada em linhas", "\"a\nb\""},
+		{"string com quebra CR", "\"a\rb\""},
+		{"string com quebra CRLF", "\"a\r\nb\""},
 		{"caractere inválido", "let x = #;"},
 		{"inteiro grande demais", "32768"},
 	}
@@ -88,6 +90,18 @@ func TestEOF(t *testing.T) {
 		if tok, err := s.NextToken(); err != nil || tok.Type != EOF {
 			t.Errorf("esperava EOF, veio %v (err=%v)", tok, err)
 		}
+	}
+}
+
+func TestWriteXMLOmiteEOF(t *testing.T) {
+	var sb strings.Builder
+	tokens := []Token{{Type: IDENT, Value: "x", Line: 1}, {Type: EOF, Line: 1}}
+	if err := WriteXML(&sb, tokens); err != nil {
+		t.Fatal(err)
+	}
+	want := "<tokens>\n<identifier> x </identifier>\n</tokens>\n"
+	if sb.String() != want {
+		t.Errorf("XML com EOF: got %q, want %q", sb.String(), want)
 	}
 }
 

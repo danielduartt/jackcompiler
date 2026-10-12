@@ -23,6 +23,9 @@ func WriteXML(w io.Writer, tokens []Token) error {
 		return err
 	}
 	for _, tok := range tokens {
+		if tok.Type == EOF {
+			continue
+		}
 		if _, err := fmt.Fprintln(w, tok.XML()); err != nil {
 			return err
 		}

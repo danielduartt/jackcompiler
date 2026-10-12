@@ -116,10 +116,10 @@ func (s *Scanner) readNumber(line int) (Token, error) {
 func (s *Scanner) readString(line int) (Token, error) {
 	s.advance() // aspa de abertura (não faz parte do valor)
 	start := s.pos
-	for !s.atEnd() && s.peek() != '"' && s.peek() != '\n' {
+	for !s.atEnd() && s.peek() != '"' && s.peek() != '\n' && s.peek() != '\r' {
 		s.advance()
 	}
-	if s.atEnd() || s.peek() == '\n' {
+	if s.atEnd() || s.peek() == '\n' || s.peek() == '\r' {
 		return Token{Type: ILLEGAL, Line: line},
 			fmt.Errorf("linha %d: string não fechada", line)
 	}

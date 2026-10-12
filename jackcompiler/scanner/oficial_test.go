@@ -40,7 +40,15 @@ func primeiraDiferenca(got, want string) string {
 func TestXMLOficial(t *testing.T) {
 	raiz := filepath.Join("..", "testdata")
 	if _, err := os.Stat(raiz); err != nil {
-		t.Skipf("pasta %s não encontrada: coloque os arquivos oficiais nela", raiz)
+		t.Fatalf("pasta obrigatória %s indisponível: %v", raiz, err)
+	}
+	for _, nome := range []string{"Main", "Square", "SquareGame"} {
+		for _, sufixo := range []string{".jack", "T.xml"} {
+			caminho := filepath.Join(raiz, "Square", nome+sufixo)
+			if _, err := os.ReadFile(caminho); err != nil {
+				t.Fatalf("arquivo obrigatório %s indisponível: %v", caminho, err)
+			}
+		}
 	}
 
 	comparados := 0
@@ -53,7 +61,7 @@ func TestXMLOficial(t *testing.T) {
 		}
 		gabarito := strings.TrimSuffix(caminho, ".jack") + "T.xml"
 		if _, err := os.Stat(gabarito); err != nil {
-			return nil // este .jack não tem XML oficial ao lado: ignora
+			return fmt.Errorf("gabarito obrigatório %s indisponível: %w", gabarito, err)
 		}
 		comparados++
 
@@ -90,6 +98,6 @@ func TestXMLOficial(t *testing.T) {
 		t.Fatal(err)
 	}
 	if comparados == 0 {
-		t.Skip("nenhum par X.jack + XT.xml encontrado em ../testdata")
+		t.Fatal("nenhum par X.jack + XT.xml encontrado em ../testdata")
 	}
 }
