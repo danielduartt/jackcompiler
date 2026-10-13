@@ -4,8 +4,8 @@ Compilador da linguagem **Jack** (projeto [nand2tetris](https://www.nand2tetris.
 
 ## Equipe
 
-- **Daniel Nunes Duarte** — Matrícula: [preencher matrícula]
-- **João Victor Oliveira** — Matrícula: [preencher matrícula]
+- **Daniel Nunes Duarte** — Matrícula: 20250013550
+- **João Victor Oliveira** — Matrícula: 20260001375
 
 ## Requisitos
 
