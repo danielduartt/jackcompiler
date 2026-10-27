@@ -157,6 +157,7 @@ func (p *Parser) close(name string) {
 	p.depth--
 	p.emit("</" + name + ">")
 }
+
 // --- Gramática: estrutura do programa -----------------------------------
 
 // class: 'class' className '{' classVarDec* subroutineDec* '}'
