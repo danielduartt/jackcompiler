@@ -160,9 +160,3 @@ comentários de bloco do scanner. A remoção desse avanço preserva o primeiro
 caractere após `*/`, incluindo quebras de linha. Há testes de regressão para
 comentário seguido diretamente de token e de nova linha.
 
-## Entrega acadêmica
-
-Preencher matrículas e conferir o link do repositório antes da entrega.
-O enunciado exige pelo menos 15 commits coerentes; nenhum histórico foi
-fabricado nem foram criados commits automaticamente. O envio do ZIP e do
-link no SIGAA é realizado pelo grupo.
