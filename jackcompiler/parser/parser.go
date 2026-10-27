@@ -157,3 +157,93 @@ func (p *Parser) close(name string) {
 	p.depth--
 	p.emit("</" + name + ">")
 }
+// --- Gramática: estrutura do programa -----------------------------------
+
+// class: 'class' className '{' classVarDec* subroutineDec* '}'
+func (p *Parser) parseClass() {
+	p.open("class")
+	p.consume(scanner.CLASS)
+	p.consume(scanner.IDENT)
+	p.consume(scanner.LBRACE)
+	for p.nextIs(scanner.STATIC, scanner.FIELD) {
+		p.parseClassVarDec()
+	}
+	for p.nextIs(scanner.CONSTRUCTOR, scanner.FUNCTION, scanner.METHOD) {
+		p.parseSubroutineDec()
+	}
+	p.consume(scanner.RBRACE)
+	p.close("class")
+}
+
+// classVarDec: ('static'|'field') type varName (',' varName)* ';'
+func (p *Parser) parseClassVarDec() {
+	p.open("classVarDec")
+	p.consume(scanner.STATIC, scanner.FIELD)
+	p.parseType()
+	p.consume(scanner.IDENT)
+	for p.match(scanner.COMMA) {
+		p.consume(scanner.IDENT)
+	}
+	p.consume(scanner.SEMICOLON)
+	p.close("classVarDec")
+}
+
+// type: 'int' | 'char' | 'boolean' | className   (não gera tag própria)
+func (p *Parser) parseType() {
+	p.consume(scanner.INT, scanner.CHAR, scanner.BOOLEAN, scanner.IDENT)
+}
+
+// subroutineDec: ('constructor'|'function'|'method') ('void'|type)
+//
+//	subroutineName '(' parameterList ')' subroutineBody
+func (p *Parser) parseSubroutineDec() {
+	p.open("subroutineDec")
+	p.consume(scanner.CONSTRUCTOR, scanner.FUNCTION, scanner.METHOD)
+	p.consume(scanner.VOID, scanner.INT, scanner.CHAR, scanner.BOOLEAN, scanner.IDENT)
+	p.consume(scanner.IDENT)
+	p.consume(scanner.LPAREN)
+	p.parseParameterList()
+	p.consume(scanner.RPAREN)
+	p.parseSubroutineBody()
+	p.close("subroutineDec")
+}
+
+// parameterList: ((type varName) (',' type varName)*)?
+func (p *Parser) parseParameterList() {
+	p.open("parameterList")
+	if !p.nextIs(scanner.RPAREN) {
+		p.parseType()
+		p.consume(scanner.IDENT)
+		for p.match(scanner.COMMA) {
+			p.parseType()
+			p.consume(scanner.IDENT)
+		}
+	}
+	p.close("parameterList")
+}
+
+// subroutineBody: '{' varDec* statements '}'
+func (p *Parser) parseSubroutineBody() {
+	p.open("subroutineBody")
+	p.consume(scanner.LBRACE)
+	for p.nextIs(scanner.VAR) {
+		p.parseVarDec()
+	}
+	p.parseStatements()
+	p.consume(scanner.RBRACE)
+	p.close("subroutineBody")
+}
+
+// varDec: 'var' type varName (',' varName)* ';'
+func (p *Parser) parseVarDec() {
+	p.open("varDec")
+	p.consume(scanner.VAR)
+	p.parseType()
+	p.consume(scanner.IDENT)
+	for p.match(scanner.COMMA) {
+		p.consume(scanner.IDENT)
+	}
+	p.consume(scanner.SEMICOLON)
+	p.close("varDec")
+}
+
