@@ -71,3 +71,419 @@ func (p *Parser) run(rule func()) (xml string, err error) {
 func (p *Parser) fail(format string, args ...any) {
 	panic(abort{&SyntaxError{Line: p.next.Line, Msg: fmt.Sprintf(format, args...)}})
 }
+// --- Consumo de tokens ----------------------
+// advance consome o token seguinte: ele vira cur e o scanner fornece um novo next.
+func (p *Parser) advance() {
+	p.cur = p.next
+	tok, err := p.scan.NextToken()
+	if err != nil {
+		panic(abort{fmt.Errorf("erro léxico: %w", err)})
+	}
+	p.next = tok
+}
+
+// peek devolve o próximo token sem consumi-lo.
+func (p *Parser) peek() scanner.Token { return p.next }
+
+// nextIs diz se o próximo token é de algum dos tipos dados (sem consumir).
+func (p *Parser) nextIs(types ...scanner.TokenType) bool {
+	for _, t := range types {
+		if p.next.Type == t {
+			return true
+		}
+	}
+	return false
+}
+
+// match consome o próximo token SE ele for do tipo t, e diz se consumiu.
+// É o jeito de tratar partes opcionais da gramática: ('else' ...)?
+func (p *Parser) match(t scanner.TokenType) bool {
+	if p.next.Type != t {
+		return false
+	}
+	p.consume(t)
+	return true
+}
+
+// consume EXIGE que o próximo token seja de um dos tipos dados: consome e
+// escreve o token no XML. Se não for, a análise para com uma mensagem clara.
+func (p *Parser) consume(types ...scanner.TokenType) {
+	if !p.nextIs(types...) {
+		p.fail("Esperado %s encontrado %s", describeExpected(types), describeFound(p.next))
+	}
+	p.advance()
+	p.emit(p.cur.XML())
+}
+
+func describeExpected(types []scanner.TokenType) string {
+	names := make([]string, len(types))
+	for i, t := range types {
+		if lx := t.Lexeme(); lx != "" {
+			names[i] = "'" + lx + "'"
+		} else {
+			names[i] = t.Category() // identifier, integerConstant, stringConstant
+		}
+	}
+	if len(names) == 1 {
+		return names[0]
+	}
+	return strings.Join(names[:len(names)-1], ", ") + " ou " + names[len(names)-1]
+}
+
+func describeFound(tok scanner.Token) string {
+	if tok.Type == scanner.EOF {
+		return "fim do arquivo"
+	}
+	return "'" + tok.Value + "'"
+}
+
+// --- Consumo de tokens ----------------------
+// advance consome o token seguinte: ele vira cur e o scanner fornece um novo next.
+func (p *Parser) advance() {
+	p.cur = p.next
+	tok, err := p.scan.NextToken()
+	if err != nil {
+		panic(abort{fmt.Errorf("erro léxico: %w", err)})
+	}
+	p.next = tok
+}
+
+// peek devolve o próximo token sem consumi-lo.
+func (p *Parser) peek() scanner.Token { return p.next }
+
+// nextIs diz se o próximo token é de algum dos tipos dados (sem consumir).
+func (p *Parser) nextIs(types ...scanner.TokenType) bool {
+	for _, t := range types {
+		if p.next.Type == t {
+			return true
+		}
+	}
+	return false
+}
+
+// match consome o próximo token SE ele for do tipo t, e diz se consumiu.
+// É o jeito de tratar partes opcionais da gramática: ('else' ...)?
+func (p *Parser) match(t scanner.TokenType) bool {
+	if p.next.Type != t {
+		return false
+	}
+	p.consume(t)
+	return true
+}
+
+// consume EXIGE que o próximo token seja de um dos tipos dados: consome e
+// escreve o token no XML. Se não for, a análise para com uma mensagem clara.
+func (p *Parser) consume(types ...scanner.TokenType) {
+	if !p.nextIs(types...) {
+		p.fail("Esperado %s encontrado %s", describeExpected(types), describeFound(p.next))
+	}
+	p.advance()
+	p.emit(p.cur.XML())
+}
+
+func describeExpected(types []scanner.TokenType) string {
+	names := make([]string, len(types))
+	for i, t := range types {
+		if lx := t.Lexeme(); lx != "" {
+			names[i] = "'" + lx + "'"
+		} else {
+			names[i] = t.Category() // identifier, integerConstant, stringConstant
+		}
+	}
+	if len(names) == 1 {
+		return names[0]
+	}
+	return strings.Join(names[:len(names)-1], ", ") + " ou " + names[len(names)-1]
+}
+
+func describeFound(tok scanner.Token) string {
+	if tok.Type == scanner.EOF {
+		return "fim do arquivo"
+	}
+	return "'" + tok.Value + "'"
+}
+
+// --- Saída XML -------
+// emit escreve uma linha indentada
+func (p *Parser) emit(s string) {
+	p.out.WriteString(strings.Repeat("  ", p.depth))
+	p.out.WriteString(s)
+	p.out.WriteByte('\n')
+}
+
+// open abre um não-terminal: <nome> e desce um nível.
+func (p *Parser) open(name string) {
+	p.emit("<" + name + ">")
+	p.depth++
+}
+
+// close fecha um não-terminal: sobe um nível e escreve </nome>.
+func (p *Parser) close(name string) {
+	p.depth--
+	p.emit("</" + name + ">")
+}
+
+// class: 'class' className '{' classVarDec* subroutineDec* '}'
+func (p *Parser) parseClass() {
+	p.open("class")
+	p.consume(scanner.CLASS)
+	p.consume(scanner.IDENT)
+	p.consume(scanner.LBRACE)
+	for p.nextIs(scanner.STATIC, scanner.FIELD) {
+		p.parseClassVarDec()
+	}
+	for p.nextIs(scanner.CONSTRUCTOR, scanner.FUNCTION, scanner.METHOD) {
+		p.parseSubroutineDec()
+	}
+	p.consume(scanner.RBRACE)
+	p.close("class")
+}
+
+// classVarDec: ('static'|'field') type varName (',' varName)* ';'
+func (p *Parser) parseClassVarDec() {
+	p.open("classVarDec")
+	p.consume(scanner.STATIC, scanner.FIELD)
+	p.parseType()
+	p.consume(scanner.IDENT)
+	for p.match(scanner.COMMA) {
+		p.consume(scanner.IDENT)
+	}
+	p.consume(scanner.SEMICOLON)
+	p.close("classVarDec")
+}
+
+// type: 'int' | 'char' | 'boolean' | className   (não gera tag própria)
+func (p *Parser) parseType() {
+	p.consume(scanner.INT, scanner.CHAR, scanner.BOOLEAN, scanner.IDENT)
+}
+
+// subroutineDec: ('constructor'|'function'|'method') ('void'|type)
+//
+//	subroutineName '(' parameterList ')' subroutineBody
+func (p *Parser) parseSubroutineDec() {
+	p.open("subroutineDec")
+	p.consume(scanner.CONSTRUCTOR, scanner.FUNCTION, scanner.METHOD)
+	p.consume(scanner.VOID, scanner.INT, scanner.CHAR, scanner.BOOLEAN, scanner.IDENT)
+	p.consume(scanner.IDENT)
+	p.consume(scanner.LPAREN)
+	p.parseParameterList()
+	p.consume(scanner.RPAREN)
+	p.parseSubroutineBody()
+	p.close("subroutineDec")
+}
+
+// parameterList: ((type varName) (',' type varName)*)?
+func (p *Parser) parseParameterList() {
+	p.open("parameterList")
+	if !p.nextIs(scanner.RPAREN) {
+		p.parseType()
+		p.consume(scanner.IDENT)
+		for p.match(scanner.COMMA) {
+			p.parseType()
+			p.consume(scanner.IDENT)
+		}
+	}
+	p.close("parameterList")
+}
+
+// subroutineBody: '{' varDec* statements '}'
+func (p *Parser) parseSubroutineBody() {
+	p.open("subroutineBody")
+	p.consume(scanner.LBRACE)
+	for p.nextIs(scanner.VAR) {
+		p.parseVarDec()
+	}
+	p.parseStatements()
+	p.consume(scanner.RBRACE)
+	p.close("subroutineBody")
+}
+
+// varDec: 'var' type varName (',' varName)* ';'
+func (p *Parser) parseVarDec() {
+	p.open("varDec")
+	p.consume(scanner.VAR)
+	p.parseType()
+	p.consume(scanner.IDENT)
+	for p.match(scanner.COMMA) {
+		p.consume(scanner.IDENT)
+	}
+	p.consume(scanner.SEMICOLON)
+	p.close("varDec")
+}
+
+// statements: statement*
+func (p *Parser) parseStatements() {
+	p.open("statements")
+	for p.nextIs(scanner.LET, scanner.IF, scanner.WHILE, scanner.DO, scanner.RETURN) {
+		switch p.next.Type {
+		case scanner.LET:
+			p.parseLet()
+		case scanner.IF:
+			p.parseIf()
+		case scanner.WHILE:
+			p.parseWhile()
+		case scanner.DO:
+			p.parseDo()
+		case scanner.RETURN:
+			p.parseReturn()
+		}
+	}
+	p.close("statements")
+}
+
+// letStatement: 'let' varName ('[' expression ']')? '=' expression ';'
+func (p *Parser) parseLet() {
+	p.open("letStatement")
+	p.consume(scanner.LET)
+	p.consume(scanner.IDENT)
+	if p.match(scanner.LBRACKET) {
+		p.parseExpression()
+		p.consume(scanner.RBRACKET)
+	}
+	p.consume(scanner.EQ)
+	p.parseExpression()
+	p.consume(scanner.SEMICOLON)
+	p.close("letStatement")
+}
+
+// ifStatement: 'if' '(' expression ')' '{' statements '}' ('else' '{' statements '}')?
+func (p *Parser) parseIf() {
+	p.open("ifStatement")
+	p.consume(scanner.IF)
+	p.consume(scanner.LPAREN)
+	p.parseExpression()
+	p.consume(scanner.RPAREN)
+	p.consume(scanner.LBRACE)
+	p.parseStatements()
+	p.consume(scanner.RBRACE)
+	if p.match(scanner.ELSE) {
+		p.consume(scanner.LBRACE)
+		p.parseStatements()
+		p.consume(scanner.RBRACE)
+	}
+	p.close("ifStatement")
+}
+
+// whileStatement: 'while' '(' expression ')' '{' statements '}'
+func (p *Parser) parseWhile() {
+	p.open("whileStatement")
+	p.consume(scanner.WHILE)
+	p.consume(scanner.LPAREN)
+	p.parseExpression()
+	p.consume(scanner.RPAREN)
+	p.consume(scanner.LBRACE)
+	p.parseStatements()
+	p.consume(scanner.RBRACE)
+	p.close("whileStatement")
+}
+
+// doStatement: 'do' subroutineCall ';'
+func (p *Parser) parseDo() {
+	p.open("doStatement")
+	p.consume(scanner.DO)
+	p.consume(scanner.IDENT)
+	p.parseCallTail()
+	p.consume(scanner.SEMICOLON)
+	p.close("doStatement")
+}
+
+// returnStatement: 'return' expression? ';'
+func (p *Parser) parseReturn() {
+	p.open("returnStatement")
+	p.consume(scanner.RETURN)
+	if !p.nextIs(scanner.SEMICOLON) {
+		p.parseExpression()
+	}
+	p.consume(scanner.SEMICOLON)
+	p.close("returnStatement")
+}
+
+// isOp diz se o tipo é um dos operadores binários de Jack: + - * / & | < > =
+func isOp(t scanner.TokenType) bool {
+	switch t {
+	case scanner.PLUS, scanner.MINUS, scanner.ASTERISK, scanner.SLASH,
+		scanner.AND, scanner.OR, scanner.LT, scanner.GT, scanner.EQ:
+		return true
+	}
+	return false
+}
+
+// expression: term (op term)*
+//
+// Jack NÃO tem precedência de operadores: 1+2*3 é uma lista PLANA de termos e
+// operadores, avaliada da esquerda para a direita. Por isso um único laço basta.
+func (p *Parser) parseExpression() {
+	p.open("expression")
+	p.parseTerm()
+	for isOp(p.next.Type) {
+		p.consume(p.next.Type)
+		p.parseTerm()
+	}
+	p.close("expression")
+}
+
+// term: integerConstant | stringConstant | keywordConstant | varName
+//
+//	| varName '[' expression ']' | subroutineCall
+//	| '(' expression ')' | unaryOp term
+//
+// Quando o termo começa com um identificador, o PRÓXIMO token decide:
+// '[' = acesso a array; '(' ou '.' = chamada de subrotina; outro = variável.
+func (p *Parser) parseTerm() {
+	p.open("term")
+	switch p.next.Type {
+	case scanner.NUMBER, scanner.STRING,
+		scanner.TRUE, scanner.FALSE, scanner.NULL, scanner.THIS:
+		p.consume(p.next.Type)
+
+	case scanner.IDENT:
+		p.consume(scanner.IDENT)
+		switch {
+		case p.match(scanner.LBRACKET):
+			p.parseExpression()
+			p.consume(scanner.RBRACKET)
+		case p.nextIs(scanner.LPAREN, scanner.DOT):
+			p.parseCallTail()
+		}
+
+	case scanner.LPAREN:
+		p.consume(scanner.LPAREN)
+		p.parseExpression()
+		p.consume(scanner.RPAREN)
+
+	case scanner.MINUS, scanner.NOT: // operador unário
+		p.consume(p.next.Type)
+		p.parseTerm()
+
+	default:
+		p.fail("Esperado um termo (número, string, identificador, '(', '-' ou '~') encontrado %s",
+			describeFound(p.next))
+	}
+	p.close("term")
+}
+
+// parseCallTail trata o RESTANTE de uma chamada de subrotina, depois que o
+// primeiro identificador já foi consumido:
+//
+//	subroutineName '(' expressionList ')'
+//	| (className|varName) '.' subroutineName '(' expressionList ')'
+func (p *Parser) parseCallTail() {
+	if p.match(scanner.DOT) {
+		p.consume(scanner.IDENT)
+	}
+	p.consume(scanner.LPAREN)
+	p.parseExpressionList()
+	p.consume(scanner.RPAREN)
+}
+
+// expressionList: (expression (',' expression)*)?
+func (p *Parser) parseExpressionList() {
+	p.open("expressionList")
+	if !p.nextIs(scanner.RPAREN) {
+		p.parseExpression()
+		for p.match(scanner.COMMA) {
+			p.parseExpression()
+		}
+	}
+	p.close("expressionList")
+}
