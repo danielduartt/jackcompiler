@@ -7,10 +7,9 @@ não gera código VM nem realiza análise semântica de nomes e tipos.
 
 ## Equipe
 
-- **Daniel Nunes Duarte** — Matrícula: [Matrícula aqui]
-- **João Victor Oliveira** — Matrícula: [Matrícula aqui]
+- **Daniel Nunes Duarte** — Matrícula: 
+- **João Victor Oliveira** — Matrícula: 
 
-As matrículas ainda precisam ser preenchidas pelos integrantes.
 
 ## Compilar e executar
 
