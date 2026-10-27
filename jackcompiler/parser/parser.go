@@ -247,3 +247,91 @@ func (p *Parser) parseVarDec() {
 	p.close("varDec")
 }
 
+// --- Gramática: comandos --------------------------------------------------
+
+// statements: statement*
+func (p *Parser) parseStatements() {
+	p.open("statements")
+	for p.nextIs(scanner.LET, scanner.IF, scanner.WHILE, scanner.DO, scanner.RETURN) {
+		switch p.next.Type {
+		case scanner.LET:
+			p.parseLet()
+		case scanner.IF:
+			p.parseIf()
+		case scanner.WHILE:
+			p.parseWhile()
+		case scanner.DO:
+			p.parseDo()
+		case scanner.RETURN:
+			p.parseReturn()
+		}
+	}
+	p.close("statements")
+}
+
+// letStatement: 'let' varName ('[' expression ']')? '=' expression ';'
+func (p *Parser) parseLet() {
+	p.open("letStatement")
+	p.consume(scanner.LET)
+	p.consume(scanner.IDENT)
+	if p.match(scanner.LBRACKET) {
+		p.parseExpression()
+		p.consume(scanner.RBRACKET)
+	}
+	p.consume(scanner.EQ)
+	p.parseExpression()
+	p.consume(scanner.SEMICOLON)
+	p.close("letStatement")
+}
+
+// ifStatement: 'if' '(' expression ')' '{' statements '}' ('else' '{' statements '}')?
+func (p *Parser) parseIf() {
+	p.open("ifStatement")
+	p.consume(scanner.IF)
+	p.consume(scanner.LPAREN)
+	p.parseExpression()
+	p.consume(scanner.RPAREN)
+	p.consume(scanner.LBRACE)
+	p.parseStatements()
+	p.consume(scanner.RBRACE)
+	if p.match(scanner.ELSE) {
+		p.consume(scanner.LBRACE)
+		p.parseStatements()
+		p.consume(scanner.RBRACE)
+	}
+	p.close("ifStatement")
+}
+
+// whileStatement: 'while' '(' expression ')' '{' statements '}'
+func (p *Parser) parseWhile() {
+	p.open("whileStatement")
+	p.consume(scanner.WHILE)
+	p.consume(scanner.LPAREN)
+	p.parseExpression()
+	p.consume(scanner.RPAREN)
+	p.consume(scanner.LBRACE)
+	p.parseStatements()
+	p.consume(scanner.RBRACE)
+	p.close("whileStatement")
+}
+
+// doStatement: 'do' subroutineCall ';'
+func (p *Parser) parseDo() {
+	p.open("doStatement")
+	p.consume(scanner.DO)
+	p.consume(scanner.IDENT)
+	p.parseCallTail()
+	p.consume(scanner.SEMICOLON)
+	p.close("doStatement")
+}
+
+// returnStatement: 'return' expression? ';'
+func (p *Parser) parseReturn() {
+	p.open("returnStatement")
+	p.consume(scanner.RETURN)
+	if !p.nextIs(scanner.SEMICOLON) {
+		p.parseExpression()
+	}
+	p.consume(scanner.SEMICOLON)
+	p.close("returnStatement")
+}
