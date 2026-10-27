@@ -1,0 +1,10 @@
+class Main {
+    function void main() {
+        var int x;
+        let x = 10;
+        if (x < 20) {
+            do Output.printString("Hello, World!");
+        }
+        return;
+    }
+}

@@ -1,11 +1,23 @@
 package lexer
 
+import "strings"
+
 type Lexer struct {
 	input        string
 	position     int
 	readPosition int
 	ch           byte
 	line         int
+	tokenStart   int
+}
+
+// TokenColumn retorna a coluna (em bytes, iniciando em 1) do último token lido.
+func (l *Lexer) TokenColumn() int {
+	start := l.tokenStart
+	if start > len(l.input) {
+		start = len(l.input)
+	}
+	return start - strings.LastIndexAny(l.input[:start], "\r\n")
 }
 
 func New(input string) *Lexer {
@@ -53,6 +65,7 @@ func (l *Lexer) NextToken() Token {
 	var tok Token
 
 	l.skipWhitespace()
+	l.tokenStart = l.position
 
 	switch l.ch {
 	// Símbolos de 1 caractere
@@ -197,7 +210,6 @@ func (l *Lexer) skipBlockComment() {
 		if l.ch == '*' && l.peekChar() == '/' {
 			l.readChar() // Consome '*'
 			l.readChar() // Consome '/'
-			l.readChar() // Avança para o próximo caractere após o comentário
 			break
 		}
 		if l.ch == '\n' {

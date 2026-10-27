@@ -138,3 +138,43 @@ func TestBackslashDoesNotEscapeQuote(t *testing.T) {
 		}
 	}
 }
+
+func TestTokenColumn(t *testing.T) {
+	l := New("  class Main {\r\n\t/* comentário */ \"texto\n  x\n}")
+	want := []struct {
+		token  Token
+		column int
+	}{
+		{Token{Type: KEYWORD, Literal: "class", Line: 1}, 3},
+		{Token{Type: IDENTIFIER, Literal: "Main", Line: 1}, 9},
+		{Token{Type: LBRACE, Literal: "{", Line: 1}, 14},
+		{Token{Type: ILLEGAL, Literal: "texto", Line: 2}, 20},
+		{Token{Type: IDENTIFIER, Literal: "x", Line: 3}, 3},
+		{Token{Type: RBRACE, Literal: "}", Line: 4}, 1},
+		{Token{Type: EOF, Literal: "", Line: 4}, 2},
+		{Token{Type: EOF, Literal: "", Line: 4}, 2},
+	}
+	for i, expected := range want {
+		got := l.NextToken()
+		if column := l.TokenColumn(); got != expected.token || column != expected.column {
+			t.Fatalf("token[%d] esperado=%+v coluna=%d, obteve=%+v coluna=%d",
+				i, expected.token, expected.column, got, column)
+		}
+	}
+}
+
+func TestBlockCommentPreservesFollowingCharacter(t *testing.T) {
+	for _, input := range []string{"/* bloco */class", "/* bloco */\nclass"} {
+		t.Run(input, func(t *testing.T) {
+			l := New(input)
+			line := 1
+			if input == "/* bloco */\nclass" {
+				line = 2
+			}
+			want := Token{Type: KEYWORD, Literal: "class", Line: line}
+			if got := l.NextToken(); got != want {
+				t.Fatalf("após comentário esperado=%+v, obteve=%+v", want, got)
+			}
+		})
+	}
+}
