@@ -214,6 +214,25 @@ func (t TokenType) Category() string {
 	return categories[t] // tipo ausente devolve "" (serve para ILLEGAL e EOF)
 }
 
+// lexemes é a tabela INVERSA: tipo de token -> texto no código-fonte.
+// O parser usa isso para escrever mensagens como "Esperado ';'".
+var lexemes = func() map[TokenType]string {
+	m := make(map[TokenType]string, len(keywords)+len(symbols))
+	for palavra, tipo := range keywords {
+		m[tipo] = palavra
+	}
+	for r, tipo := range symbols {
+		m[tipo] = string(r)
+	}
+	return m
+}()
+
+// Lexeme devolve o texto fixo do token no código-fonte ("let", ";", "{"...).
+// Devolve "" para tipos sem texto fixo (NUMBER, IDENT, STRING, ILLEGAL, EOF).
+func (t TokenType) Lexeme() string {
+	return lexemes[t]
+}
+
 // a Cadeia ou Palavra é um identificador ou é reservada? Essa função define isso
 func lookupIdent(word string) TokenType {
 	// comma-ok: "ok" distingue "chave ausente" de "chave presente com valor zero".
