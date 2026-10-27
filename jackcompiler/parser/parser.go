@@ -335,3 +335,95 @@ func (p *Parser) parseReturn() {
 	p.consume(scanner.SEMICOLON)
 	p.close("returnStatement")
 }
+
+// --- Gramática: expressões -------------------------------------------------
+
+// isOp diz se o tipo é um dos operadores binários de Jack: + - * / & | < > =
+func isOp(t scanner.TokenType) bool {
+	switch t {
+	case scanner.PLUS, scanner.MINUS, scanner.ASTERISK, scanner.SLASH,
+		scanner.AND, scanner.OR, scanner.LT, scanner.GT, scanner.EQ:
+		return true
+	}
+	return false
+}
+
+// expression: term (op term)*
+//
+// Jack NÃO tem precedência de operadores: 1+2*3 é uma lista PLANA de termos e
+// operadores, avaliada da esquerda para a direita. Por isso um único laço basta.
+func (p *Parser) parseExpression() {
+	p.open("expression")
+	p.parseTerm()
+	for isOp(p.next.Type) {
+		p.consume(p.next.Type)
+		p.parseTerm()
+	}
+	p.close("expression")
+}
+
+// term: integerConstant | stringConstant | keywordConstant | varName
+//
+//	| varName '[' expression ']' | subroutineCall
+//	| '(' expression ')' | unaryOp term
+//
+// Quando o termo começa com um identificador, o PRÓXIMO token decide:
+// '[' = acesso a array; '(' ou '.' = chamada de subrotina; outro = variável.
+func (p *Parser) parseTerm() {
+	p.open("term")
+	switch p.next.Type {
+	case scanner.NUMBER, scanner.STRING,
+		scanner.TRUE, scanner.FALSE, scanner.NULL, scanner.THIS:
+		p.consume(p.next.Type)
+
+	case scanner.IDENT:
+		p.consume(scanner.IDENT)
+		switch {
+		case p.match(scanner.LBRACKET):
+			p.parseExpression()
+			p.consume(scanner.RBRACKET)
+		case p.nextIs(scanner.LPAREN, scanner.DOT):
+			p.parseCallTail()
+		}
+
+	case scanner.LPAREN:
+		p.consume(scanner.LPAREN)
+		p.parseExpression()
+		p.consume(scanner.RPAREN)
+
+	case scanner.MINUS, scanner.NOT: // operador unário
+		p.consume(p.next.Type)
+		p.parseTerm()
+
+	default:
+		p.fail("Esperado um termo (número, string, identificador, '(', '-' ou '~') encontrado %s",
+			describeFound(p.next))
+	}
+	p.close("term")
+}
+
+// parseCallTail trata o RESTANTE de uma chamada de subrotina, depois que o
+// primeiro identificador já foi consumido:
+//
+//	subroutineName '(' expressionList ')'
+//	| (className|varName) '.' subroutineName '(' expressionList ')'
+func (p *Parser) parseCallTail() {
+	if p.match(scanner.DOT) {
+		p.consume(scanner.IDENT)
+	}
+	p.consume(scanner.LPAREN)
+	p.parseExpressionList()
+	p.consume(scanner.RPAREN)
+}
+
+// expressionList: (expression (',' expression)*)?
+func (p *Parser) parseExpressionList() {
+	p.open("expressionList")
+	if !p.nextIs(scanner.RPAREN) {
+		p.parseExpression()
+		for p.match(scanner.COMMA) {
+			p.parseExpression()
+		}
+	}
+	p.close("expressionList")
+}
