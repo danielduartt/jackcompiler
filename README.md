@@ -1,25 +1,28 @@
 ﻿# JackCompiler
 
-Implementação do analisador léxico (scanner) e do analisador sintático (parser)
-da linguagem **Jack**, do projeto
-[nand2tetris](https://www.nand2tetris.org/), desenvolvida em **Go** para a
+Compilador da linguagem **Jack**, do projeto
+[nand2tetris](https://www.nand2tetris.org/), desenvolvido em **Go** para a
 disciplina de Compiladores.
 
 O parser utiliza **recursive descent parsing**, reutiliza o scanner e gera a
-árvore sintática em XML no formato exigido pelo nand2tetris.
+árvore sintática em XML no formato exigido pelo nand2tetris. A geração de
+código VM (Project 11) está **em andamento**; veja a
+[Etapa 3](#etapa-3--geração-de-código-vm).
 
-## Objetivo da unidade
+## Objetivo do projeto
 
-Este repositório reúne duas etapas do compilador Jack:
+Este repositório reúne as etapas do compilador Jack:
 
-1. **Scanner:** transforma o código-fonte em tokens;
+1. **Scanner:** transforma o código-fonte em tokens (concluído);
 2. **Parser:** consome os tokens, verifica a gramática Jack e produz a árvore
-   sintática XML.
+   sintática XML (concluído);
+3. **Tabela de símbolos + gerador de código:** traduz cada classe Jack para
+   código da máquina virtual (`.vm`) do nand2tetris (em andamento).
 
 O scanner e o parser são executados no mesmo fluxo pela aplicação principal.
-Esta versão ainda não implementa a Compilation Engine, a geração de código VM
-ou a execução na plataforma Hack; essas etapas pertencem às unidades
-seguintes.
+A tabela de símbolos (`symtab`) e o escritor de código VM (`vmwriter`) já
+estão implementados e testados, mas **ainda não estão integrados ao parser**:
+por enquanto a CLI continua gerando apenas os XML.
 
 ## Equipe
 
@@ -63,6 +66,12 @@ jackcompiler/
 │   ├── scanner_test.go
 │   ├── token_test.go
 │   └── oficial_test.go
+├── symtab/
+│   ├── symtab.go
+│   └── symtab_test.go
+├── vmwriter/
+│   ├── vmwriter.go
+│   └── vmwriter_test.go
 ├── testdata/
 │   ├── ArrayTest/
 │   ├── ExpressionLessSquare/
@@ -73,6 +82,8 @@ jackcompiler/
 - `main.go`: CLI e leitura/escrita de arquivos.
 - `parser/`: analisador sintático recursive descent e testes.
 - `scanner/`: analisador léxico, tokens e serialização XML.
+- `symtab/`: tabela de símbolos com escopos de classe e de subrotina.
+- `vmwriter/`: escrita dos comandos da máquina virtual, um por linha.
 - `testdata/`: fontes e gabaritos de referência.
 - `parser/testdata/`: casos adicionais específicos do parser.
 - `out/`: saída gerada localmente, ignorada pelo Git.
@@ -205,13 +216,15 @@ conforme a gramática Jack e o formato do nand2tetris.
 
 ## Estratégia de testes
 
-A validação usa XML no padrão nand2tetris, testes unitários do scanner e do
-parser, além de verificação estática. Execute no diretório do módulo:
+A validação usa XML no padrão nand2tetris, testes unitários do scanner, do
+parser, da tabela de símbolos e do `VMWriter`, além de verificação estática.
+Execute no diretório do módulo:
 
 ```bash
 go test ./... -count=1 -cover
 go test ./parser -v -count=1
 go test ./scanner -run TestXMLOficial -v -count=1
+go test ./symtab ./vmwriter -v -count=1
 go vet ./...
 ```
 
@@ -240,6 +253,18 @@ Os testes unitários complementam os programas de referência com verificações
 Os testes do parser verificam classes mínimas, declarações, subrotinas,
 parâmetros, variáveis locais, comandos, expressões, chamadas de subrotinas,
 acesso a arrays e erros sintáticos com identificação da linha.
+
+Os testes do `VMWriter` (`vmwriter_test.go`) conferem isoladamente cada
+comando gerado: `push`/`pop` em todos os segmentos (por exemplo,
+`push constant 5`), os nove comandos aritméticos e lógicos (`add`, `neg`,
+`not`...), `label`, `goto`, `if-goto`, `call Math.abs 1`,
+`function Main.main 2` e `return`.
+
+Os testes da tabela de símbolos (`symtab_test.go`) conferem os índices por
+Kind (um `static` declarado depois de dois `field` recebe índice 0), o `this`
+como `argument 0` em métodos, a limpeza do escopo da subrotina sem apagar o da
+classe, o sombreamento de um `field` por uma variável local e nomes não
+declarados. Os dois pacotes têm 100% de cobertura.
 
 ### Teste automatizado do parser contra os gabaritos oficiais
 
@@ -340,6 +365,8 @@ contendo a linha do token inesperado. São rejeitados, entre outros:
 - `jackcompiler/main.go`: CLI e leitura/escrita de arquivos.
 - `jackcompiler/parser/`: parser recursive descent, erros sintáticos e testes.
 - `jackcompiler/scanner/`: scanner, tipos de tokens, serialização XML e testes.
+- `jackcompiler/symtab/`: tabela de símbolos e testes.
+- `jackcompiler/vmwriter/`: escrita de código VM e testes.
 - `jackcompiler/testdata/`: fontes e gabaritos de referência versionados.
 - `jackcompiler/parser/testdata/`: casos adicionais específicos do parser.
 - `jackcompiler/out/`: saída gerada, ignorada pelo Git.
@@ -366,6 +393,27 @@ parser.New(src).Parse()
 `Parse()` retorna `(string, error)`. Em caso de sucesso, a string contém a
 árvore XML completa. Em caso de falha, o chamador deve tratar o erro e não
 usar a saída parcial.
+
+Tabela de símbolos:
+
+```go
+st := symtab.New()                          // uma tabela por classe
+st.Define("x", "int", symtab.Field)         // devolve Symbol{x int field 0}
+st.StartSubroutine()                        // limpa arg/var, mantém static/field
+sym, ok := st.Resolve("x")                  // subrotina primeiro, depois classe
+n := st.VarCount(symtab.Var)                // nº de locais da subrotina
+```
+
+VMWriter:
+
+```go
+w := vmwriter.New()
+w.WriteFunction("Main.main", 0)             // function Main.main 0
+w.WritePush(vmwriter.Constant, 7)           // push constant 7
+w.WriteCall("Output.printInt", 1)           // call Output.printInt 1
+w.WriteReturn()                             // return
+codigo := w.String()
+```
 
 ## Formato da saída XML
 
@@ -422,6 +470,9 @@ Os não-terminais são representados por tags como `<class>`,
 - Parser: implementado com recursive descent e integrado à CLI.
 - XML do parser: validado automaticamente contra `ExpressionLessSquare`,
   `Square` e `ArrayTest` (7 arquivos, todos idênticos).
+- Tabela de símbolos (`symtab`): implementada e testada (100% de cobertura).
+- `VMWriter`: implementado e testado (100% de cobertura).
+- Geração de código VM no parser: **pendente** (ver checklist da Etapa 3).
 - Testes: scanner com 95,0% de cobertura e parser com 90,6% de cobertura
   durante a validação atual.
 - Verificação estática: `go vet ./...` sem erros.
@@ -459,27 +510,67 @@ subrotinas e acesso a arrays.
 
 ### Etapa 3 — Geração de código VM
 
-**Status: pendente.**
+**Status: em andamento.**
 
-O compilador deverá traduzir a linguagem Jack para a linguagem intermediária
-VM do nand2tetris, incluindo:
+O compilador traduz cada classe Jack para código da máquina virtual do
+nand2tetris, gerando um `.vm` por classe na mesma pasta do `.jack`. A geração
+é feita em **passada única**: o próprio parser, enquanto analisa, consulta a
+tabela de símbolos e emite os comandos pelo `VMWriter`, sem construir uma
+árvore intermediária.
 
-- constantes e operações aritméticas;
-- operações booleanas;
-- acesso e atribuição de variáveis;
-- acesso a arrays;
-- comandos condicionais `if/else`;
-- laços `while`;
-- chamadas e retornos de subrotinas;
-- construção de objetos;
-- métodos, funções e construtores;
-- manipulação de `this` e `that`.
+| Variável Jack | Kind | Segmento VM |
+|---|---|---|
+| `static` | `Static` | `static` |
+| `field` | `Field` | `this` |
+| parâmetro | `Arg` | `argument` |
+| `var` | `Var` | `local` |
 
-### Próximos passos recomendados
+Em um método, `argument 0` é o próprio objeto (`this`) e os parâmetros
+declarados começam em `argument 1`.
 
-1. implementar o `VMWriter` e a tabela de símbolos;
-2. integrar a geração de código VM ao parser (etapas 1 e 2 da Unidade 2);
-3. adicionar posição de coluna aos tokens e às mensagens de erro.
+#### Já feito
+
+- [x] `VMWriter`: segmentos, comandos aritméticos, `push`/`pop`, `label`,
+  `goto`, `if-goto`, `call`, `function` e `return`, com testes unitários;
+- [x] tabela de símbolos: escopos de classe e de subrotina, índices por Kind,
+  `Define`, `VarCount`, `StartSubroutine` e `Resolve`, com testes unitários.
+
+#### Falta — Etapa 1: expressões e comandos (tag `etapa1`)
+
+- [ ] parser preenche a tabela de símbolos (`static`, `field`, parâmetros e
+  `var`);
+- [ ] `function Classe.nome nLocals`, emitido depois das declarações `var`;
+- [ ] expressões: constantes (`true` = `push constant 1` + `neg`; `false` e
+  `null` = `0`), variáveis, operadores binários (`*` e `/` viram
+  `Math.multiply` e `Math.divide`) e unários (`neg`, `not`);
+- [ ] comandos `let` (variável simples), `do` (com `pop temp 0`) e `return`
+  (`void` retorna `push constant 0`);
+- [ ] `if`/`else` e `while` com rótulos únicos, inclusive aninhados;
+- [ ] chamadas `Classe.funcao(...)` com a contagem de argumentos;
+- [ ] CLI grava `Nome.vm` na mesma pasta do `.jack`, para arquivo ou diretório;
+- [ ] validar `Seven` e `ConvertToBin` no VM Emulator e criar a tag `etapa1`.
+
+#### Falta — Etapa 2: objetos e arrays
+
+- [ ] construtores: `push constant <nº de fields>`, `call Memory.alloc 1`,
+  `pop pointer 0`;
+- [ ] métodos: `push argument 0`, `pop pointer 0` na entrada;
+- [ ] chamadas de método (`obj.m()` empilha `obj`; `m()` empilha
+  `pointer 0`) e `this`;
+- [ ] arrays (`a[i]` em expressões e em `let a[i] = ...`, via `pointer 1` e
+  `that 0`);
+- [ ] strings constantes (`String.new` + `String.appendChar`);
+- [ ] validar `Square`, `Average`, `Pong` e `ComplexArrays` no VM Emulator.
+
+#### Falta — entrega final
+
+- [ ] tabela de validação dos seis programas do Project 11 neste README;
+- [ ] desafios e aprendizados da Unidade 2;
+- [ ] vídeo de demonstração (10 a 20 minutos) e link neste README.
+
+### Melhorias futuras
+
+- adicionar posição de coluna aos tokens e às mensagens de erro.
 
 ## Checklist de reprodução da entrega
 
@@ -509,7 +600,10 @@ go run . ./testdata/Square /tmp/jackcompiler-out
   a saída do parser com os gabaritos oficiais do Project 10;
 - atualizar este README;
 - planejar a divisão da Unidade 2 (tabela de símbolos, `VMWriter` e geração de
-  código VM) em etapas menores.
+  código VM) em etapas menores;
+- explicar a teoria da máquina virtual (pilha, segmentos, desvios e chamadas)
+  e implementar, com testes unitários, o pacote `vmwriter` e o pacote
+  `symtab`.
 
 <!-- TODO (dupla): descrever aqui se e como a IA foi usada nas entregas do
 scanner e do parser, ou declarar que não foi usada. -->
