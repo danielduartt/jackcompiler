@@ -6,9 +6,11 @@ package parser
 
 import (
 	"fmt"
+	"strconv"
 	"strings"
 
 	"github.com/danielduartt/jackcompiler/scanner"
+	"github.com/danielduartt/jackcompiler/vmwriter"
 )
 
 // SyntaxError é um erro de sintaxe, com a linha do token que causou o problema.
@@ -27,12 +29,29 @@ type Parser struct {
 	cur   scanner.Token // último token consumido
 	next  scanner.Token // lookahead: próximo token, ainda NÃO consumido
 	out   strings.Builder
+	vm    *vmwriter.VMWriter
 	depth int // nível de indentação atual do XML
 }
 
 // New cria um parser para o texto-fonte src.
 func New(src string) *Parser {
 	return &Parser{scan: scanner.New(src)}
+}
+
+// CompileExpression traduz uma expressão de constantes inteiras, booleanas ou null.
+func CompileExpression(src string) (string, error) {
+	p := New(src)
+	p.vm = vmwriter.New()
+	_, err := p.run(func() {
+		p.parseExpression()
+		if !p.nextIs(scanner.EOF) {
+			p.fail("Esperado fim da expressão, encontrado %s", describeFound(p.next))
+		}
+	})
+	if err != nil {
+		return "", err
+	}
+	return p.vm.String(), nil
 }
 
 // Parse analisa uma classe Jack completa e devolve a árvore sintática em XML.
@@ -141,6 +160,9 @@ func describeFound(tok scanner.Token) string {
 
 // emit escreve uma linha, indentada conforme a profundidade na árvore.
 func (p *Parser) emit(s string) {
+	if p.vm != nil {
+		return
+	}
 	p.out.WriteString(strings.Repeat("  ", p.depth))
 	p.out.WriteString(s)
 	p.out.WriteByte('\n')
@@ -357,8 +379,14 @@ func (p *Parser) parseExpression() {
 	p.open("expression")
 	p.parseTerm()
 	for isOp(p.next.Type) {
-		p.consume(p.next.Type)
+		op := p.next.Type
+		p.consume(op)
 		p.parseTerm()
+		if p.vm != nil {
+			if err := p.vm.WriteBinaryOp(op); err != nil {
+				panic(abort{err})
+			}
+		}
 	}
 	p.close("expression")
 }
@@ -372,10 +400,25 @@ func (p *Parser) parseExpression() {
 // '[' = acesso a array; '(' ou '.' = chamada de subrotina; outro = variável.
 func (p *Parser) parseTerm() {
 	p.open("term")
+	if p.vm != nil && p.nextIs(scanner.IDENT, scanner.STRING, scanner.THIS) {
+		p.fail("Geração VM ainda não implementada para %s", describeFound(p.next))
+	}
 	switch p.next.Type {
 	case scanner.NUMBER, scanner.STRING,
 		scanner.TRUE, scanner.FALSE, scanner.NULL, scanner.THIS:
 		p.consume(p.next.Type)
+		if p.vm != nil {
+			switch p.cur.Type {
+			case scanner.NUMBER:
+				n, _ := strconv.Atoi(p.cur.Value) // intervalo já validado pelo scanner
+				p.vm.WritePush(vmwriter.Constant, n)
+			case scanner.TRUE:
+				p.vm.WritePush(vmwriter.Constant, 1)
+				p.vm.WriteArithmetic(vmwriter.Neg)
+			case scanner.FALSE, scanner.NULL:
+				p.vm.WritePush(vmwriter.Constant, 0)
+			}
+		}
 
 	case scanner.IDENT:
 		p.consume(scanner.IDENT)
@@ -393,8 +436,16 @@ func (p *Parser) parseTerm() {
 		p.consume(scanner.RPAREN)
 
 	case scanner.MINUS, scanner.NOT: // operador unário
-		p.consume(p.next.Type)
+		op := p.next.Type
+		p.consume(op)
 		p.parseTerm()
+		if p.vm != nil {
+			if op == scanner.MINUS {
+				p.vm.WriteArithmetic(vmwriter.Neg)
+			} else {
+				p.vm.WriteArithmetic(vmwriter.Not)
+			}
+		}
 
 	default:
 		p.fail("Esperado um termo (número, string, identificador, '(', '-' ou '~') encontrado %s",
