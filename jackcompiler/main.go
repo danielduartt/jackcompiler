@@ -11,14 +11,20 @@ import (
 )
 
 func main() {
-	if len(os.Args) < 2 {
-		fmt.Fprintln(os.Stderr, "uso: jackcompiler <arquivo.jack | diretorio> [pasta-de-saida]")
+	args := os.Args[1:]
+	xml := len(args) > 0 && args[0] == "--xml"
+	if xml {
+		args = args[1:]
+	}
+	if len(args) < 1 || len(args) > 2 {
+		fmt.Fprintln(os.Stderr, "uso: jackcompiler [--xml] <arquivo.jack | diretorio> [pasta-de-saida-xml]")
 		os.Exit(1)
 	}
-	entrada := os.Args[1]
+	entrada := args[0]
 	saida := "out"
-	if len(os.Args) > 2 {
-		saida = os.Args[2]
+	if len(args) == 2 {
+		xml = true // A chamada antiga com pasta de saída seleciona a análise XML.
+		saida = args[1]
 	}
 
 	arquivos, err := listarJack(entrada)
@@ -26,14 +32,21 @@ func main() {
 		fmt.Fprintln(os.Stderr, "erro:", err)
 		os.Exit(1)
 	}
-	if err := os.MkdirAll(saida, 0o755); err != nil {
-		fmt.Fprintln(os.Stderr, "erro:", err)
-		os.Exit(1)
+	if xml {
+		if err := os.MkdirAll(saida, 0o755); err != nil {
+			fmt.Fprintln(os.Stderr, "erro:", err)
+			os.Exit(1)
+		}
 	}
 
 	falhou := false
 	for _, arq := range arquivos {
-		if err := processar(arq, saida); err != nil {
+		if xml {
+			err = processar(arq, saida)
+		} else {
+			err = compilarVM(arq)
+		}
+		if err != nil {
 			fmt.Fprintf(os.Stderr, "%s: %v\n", arq, err)
 			falhou = true
 		}
@@ -41,6 +54,19 @@ func main() {
 	if falhou {
 		os.Exit(1)
 	}
+}
+
+func compilarVM(arquivo string) error {
+	src, err := os.ReadFile(arquivo)
+	if err != nil {
+		return err
+	}
+	vm, err := parser.CompileClass(string(src))
+	if err != nil {
+		return err
+	}
+	destino := strings.TrimSuffix(arquivo, ".jack") + ".vm"
+	return os.WriteFile(destino, []byte(vm), 0o644)
 }
 
 // listarJack devolve o próprio arquivo, ou todos os .jack de um diretório.

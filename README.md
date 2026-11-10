@@ -88,11 +88,20 @@ cd jackcompiler/jackcompiler
 
 Se já estiver na raiz do repositório, entre apenas em `jackcompiler`. Os comandos abaixo devem ser executados dentro dessa pasta, onde está o `go.mod`.
 
-Para processar um diretório ou apenas um arquivo:
+Para gerar VM, passe a pasta de um programa compatível ou um arquivo Jack.
+Por exemplo, substitua `caminho/Seven` pelo caminho do programa do Projeto 11:
 
 ```bash
-go run . ./testdata/Square
-go run . ./testdata/Square/Main.jack
+go run . caminho/Seven
+go run . caminho/Seven/Main.jack
+```
+
+Cada fonte gera um arquivo de mesmo nome com extensão `.vm` ao lado do
+`.jack`. Para executar a análise XML do Projeto 10, use `--xml`:
+
+```bash
+go run . --xml ./testdata/Square
+go run . --xml ./testdata/Square/Main.jack
 ```
 
 O argumento de entrada pode ser um arquivo `.jack` ou um diretório contendo
@@ -104,16 +113,16 @@ Para compilar e executar o binário no Windows:
 
 ```powershell
 go build -o jackcompiler.exe .
-./jackcompiler.exe ./testdata/Square
+./jackcompiler.exe caminho/Seven
 ```
 
-O diretório de saída padrão é `out/`. Para escolher outro diretório, passe o segundo argumento:
+No modo XML, o diretório de saída padrão é `out/`. Passar uma pasta de saída como segundo argumento também seleciona esse modo:
 
 ```bash
 go run . ./testdata/Square ./out/Square
 ```
 
-A CLI gera dois arquivos para cada fonte:
+No modo XML, a CLI gera dois arquivos para cada fonte:
 
 - `<Nome>T.xml`: tokens produzidos pelo scanner;
 - `<Nome>P.xml`: árvore sintática produzida pelo parser.
@@ -136,17 +145,17 @@ acesso a arrays.
 ### Formato da linha de comando
 
 ```text
-jackcompiler <arquivo.jack | diretorio> [pasta-de-saida]
+jackcompiler [--xml] <arquivo.jack | diretorio> [pasta-de-saida-xml]
 ```
 
 Exemplos:
 
 ```bash
-# Diretório inteiro, saída padrão em ./out
-go run . ./testdata/Square
+# XML de um diretório inteiro, saída em ./out
+go run . --xml ./testdata/Square
 
 # Arquivo individual
-go run . ./testdata/Square/Main.jack
+go run . --xml ./testdata/Square/Main.jack
 
 # Diretório com saída em uma pasta específica
 go run . ./testdata/Square ./out/Square
