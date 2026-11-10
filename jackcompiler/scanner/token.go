@@ -4,9 +4,10 @@ type TokenType int
 
 // Estrutura de um Token <tipo, valor>
 type Token struct {
-	Type  TokenType
-	Value string
-	Line  int // linha para itentificar erros futuramente
+	Type   TokenType
+	Value  string
+	Line   int
+	Column int // posição inicial, em caracteres, contando a partir de 1
 }
 
 const (

@@ -7,15 +7,26 @@ import (
 
 const maxInt = 32767
 
+// LexError localiza o início do trecho inválido no código Jack.
+type LexError struct {
+	Line, Column int
+	Msg          string
+}
+
+func (e *LexError) Error() string {
+	return fmt.Sprintf("linha %d, coluna %d: %s", e.Line, e.Column, e.Msg)
+}
+
 type Scanner struct {
-	input []rune // []rune: cada posição é um caractere inteiro (Unicode-safe)
-	pos   int    // índice do próximo caractere a ser lido
-	line  int    // linha atual (começa em 1)
+	input  []rune // []rune: cada posição é um caractere inteiro (Unicode-safe)
+	pos    int    // índice do próximo caractere a ser lido
+	line   int
+	column int
 }
 
 // Por conversão a função contrutora em Go se chamada new
 func New(src string) *Scanner {
-	return &Scanner{input: []rune(src), line: 1}
+	return &Scanner{input: []rune(src), line: 1, column: 1}
 }
 
 // Navegação na cadeia de caracteres
@@ -46,10 +57,17 @@ func (s *Scanner) advance() rune {
 	}
 	r := s.input[s.pos]
 	s.pos++
-	// aqui utilizamos a condicional para atualizar a linha atual quando encontramos um caractere de nova linha
-	// conta quebras de linhas
-	if r == '\n' {
+	switch r {
+	case '\r':
 		s.line++
+		s.column = 1
+	case '\n':
+		if s.pos < 2 || s.input[s.pos-2] != '\r' {
+			s.line++
+		}
+		s.column = 1
+	default:
+		s.column++
 	}
 	return r
 }
@@ -61,7 +79,7 @@ func isLetter(r rune) bool { return (r >= 'a' && r <= 'z') || (r >= 'A' && r <= 
 
 // Ruídos, Espaços e Comentários são limpos pelo skipIgnored que vai pular os espaços, tabs e etc...
 // aqui tem como devolver um erro, se um comentário de bloco por exemplo ficar sem fechar
-func (s *Scanner) skipIgnored() error {
+func (s *Scanner) skipIgnored() *LexError {
 	for !s.atEnd() {
 		r := s.peek()
 		switch {
@@ -70,11 +88,11 @@ func (s *Scanner) skipIgnored() error {
 			s.advance()
 		// caso queiramos ignorar comentários de linha um / seguido de /
 		case r == '/' && s.peekNext() == '/':
-			for !s.atEnd() && s.peek() != '\n' {
+			for !s.atEnd() && s.peek() != '\n' && s.peek() != '\r' {
 				s.advance()
 			}
 		case r == '/' && s.peekNext() == '*': // comentário de bloco (inclui /** */)
-			startLine := s.line
+			line, column := s.line, s.column
 			s.advance() // '/'
 			s.advance() // '*'
 			closed := false
@@ -88,7 +106,7 @@ func (s *Scanner) skipIgnored() error {
 				s.advance()
 			}
 			if !closed {
-				return fmt.Errorf("linha %d: comentário de bloco não fechado", startLine)
+				return &LexError{line, column, "comentário de bloco não fechado"}
 			}
 		default:
 			return nil
@@ -99,7 +117,7 @@ func (s *Scanner) skipIgnored() error {
 
 // Leitura dos tokens
 
-func (s *Scanner) readNumber(line int) (Token, error) {
+func (s *Scanner) readNumber(line, column int) (Token, error) {
 	start := s.pos
 	for !s.atEnd() && isDigit(s.peek()) {
 		s.advance()
@@ -107,64 +125,64 @@ func (s *Scanner) readNumber(line int) (Token, error) {
 	text := string(s.input[start:s.pos]) // fatia [início:fim), como em Python
 	n, err := strconv.Atoi(text)
 	if err != nil || n > maxInt {
-		return Token{Type: ILLEGAL, Value: text, Line: line},
-			fmt.Errorf("linha %d: inteiro fora do intervalo 0..%d: %s", line, maxInt, text)
+		return Token{Type: ILLEGAL, Value: text, Line: line, Column: column},
+			&LexError{line, column, fmt.Sprintf("inteiro fora do intervalo 0..%d: %s", maxInt, text)}
 	}
-	return Token{Type: NUMBER, Value: text, Line: line}, nil
+	return Token{Type: NUMBER, Value: text, Line: line, Column: column}, nil
 }
 
-func (s *Scanner) readString(line int) (Token, error) {
+func (s *Scanner) readString(line, column int) (Token, error) {
 	s.advance() // aspa de abertura (não faz parte do valor)
 	start := s.pos
 	for !s.atEnd() && s.peek() != '"' && s.peek() != '\n' && s.peek() != '\r' {
 		s.advance()
 	}
 	if s.atEnd() || s.peek() == '\n' || s.peek() == '\r' {
-		return Token{Type: ILLEGAL, Line: line},
-			fmt.Errorf("linha %d: string não fechada", line)
+		return Token{Type: ILLEGAL, Line: line, Column: column},
+			&LexError{line, column, "string não fechada"}
 	}
 	value := string(s.input[start:s.pos])
 	s.advance() // aspa de fechamento
-	return Token{Type: STRING, Value: value, Line: line}, nil
+	return Token{Type: STRING, Value: value, Line: line, Column: column}, nil
 }
 
-func (s *Scanner) readWord(line int) Token {
+func (s *Scanner) readWord(line, column int) Token {
 	start := s.pos
 	for !s.atEnd() && (isLetter(s.peek()) || isDigit(s.peek())) {
 		s.advance()
 	}
 	word := string(s.input[start:s.pos])
-	return Token{Type: lookupIdent(word), Value: word, Line: line}
+	return Token{Type: lookupIdent(word), Value: word, Line: line, Column: column}
 }
 
 func (s *Scanner) NextToken() (Token, error) {
 	if err := s.skipIgnored(); err != nil {
-		return Token{Type: ILLEGAL, Line: s.line}, err
+		return Token{Type: ILLEGAL, Line: err.Line, Column: err.Column}, err
 	}
 	if s.atEnd() {
-		return Token{Type: EOF, Line: s.line}, nil
+		return Token{Type: EOF, Line: s.line, Column: s.column}, nil
 	}
 
-	line := s.line // linha em que o token COMEÇA
+	line, column := s.line, s.column
 	r := s.peek()
 
 	switch {
 	case r == '"':
-		return s.readString(line)
+		return s.readString(line, column)
 	case isDigit(r):
-		return s.readNumber(line)
+		return s.readNumber(line, column)
 	case isLetter(r):
-		return s.readWord(line), nil
+		return s.readWord(line, column), nil
 	}
 
 	if tipo, ok := symbols[r]; ok {
 		s.advance()
-		return Token{Type: tipo, Value: string(r), Line: line}, nil
+		return Token{Type: tipo, Value: string(r), Line: line, Column: column}, nil
 	}
 
 	s.advance()
-	return Token{Type: ILLEGAL, Value: string(r), Line: line},
-		fmt.Errorf("linha %d: caractere inesperado %q", line, r)
+	return Token{Type: ILLEGAL, Value: string(r), Line: line, Column: column},
+		&LexError{line, column, fmt.Sprintf("caractere inesperado %q", r)}
 }
 
 func (s *Scanner) Tokens() ([]Token, error) {

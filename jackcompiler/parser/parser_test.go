@@ -114,24 +114,25 @@ func TestParseExpressionsAndSubroutineCalls(t *testing.T) {
 
 func TestParseSyntaxErrors(t *testing.T) {
 	tests := []struct {
-		name string
-		src  string
-		line int
+		name   string
+		src    string
+		line   int
+		column int
 	}{
 		{
 			name: "missing semicolon",
 			src:  "class Main {\n  function void main() {\n    return\n  }\n}",
-			line: 4,
+			line: 4, column: 3,
 		},
 		{
 			name: "invalid term",
 			src:  "class Main {\n  function void main() {\n    let x = ;\n  }\n}",
-			line: 3,
+			line: 3, column: 13,
 		},
 		{
 			name: "trailing token",
 			src:  "class Main {} let",
-			line: 1,
+			line: 1, column: 15,
 		},
 	}
 
@@ -148,6 +149,9 @@ func TestParseSyntaxErrors(t *testing.T) {
 			}
 			if syntaxErr.Line != test.line {
 				t.Errorf("error line = %d, want %d", syntaxErr.Line, test.line)
+			}
+			if syntaxErr.Column != test.column {
+				t.Errorf("error column = %d, want %d", syntaxErr.Column, test.column)
 			}
 			if syntaxErr.Msg == "" {
 				t.Error("syntax error message is empty")

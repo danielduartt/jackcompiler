@@ -15,38 +15,38 @@ func TestTokens(t *testing.T) {
 		{"vazio", "", nil},
 		{"só espaços", " \t\r\n ", nil},
 		{"let simples", "let x = 10;", []Token{
-			{LET, "let", 1}, {IDENT, "x", 1}, {EQ, "=", 1}, {NUMBER, "10", 1}, {SEMICOLON, ";", 1},
+			{LET, "let", 1, 1}, {IDENT, "x", 1, 5}, {EQ, "=", 1, 7}, {NUMBER, "10", 1, 9}, {SEMICOLON, ";", 1, 11},
 		}},
 		{"símbolos colados", "if(x<10){}", []Token{
-			{IF, "if", 1}, {LPAREN, "(", 1}, {IDENT, "x", 1}, {LT, "<", 1}, {NUMBER, "10", 1},
-			{RPAREN, ")", 1}, {LBRACE, "{", 1}, {RBRACE, "}", 1},
+			{IF, "if", 1, 1}, {LPAREN, "(", 1, 3}, {IDENT, "x", 1, 4}, {LT, "<", 1, 5}, {NUMBER, "10", 1, 6},
+			{RPAREN, ")", 1, 8}, {LBRACE, "{", 1, 9}, {RBRACE, "}", 1, 10},
 		}},
 		{"comentário de linha", "// oi\nreturn;", []Token{
-			{RETURN, "return", 2}, {SEMICOLON, ";", 2},
+			{RETURN, "return", 2, 1}, {SEMICOLON, ";", 2, 7},
 		}},
 		{"comentário de bloco", "/* a\nb */ do", []Token{
-			{DO, "do", 2},
+			{DO, "do", 2, 6},
 		}},
 		{"comentário de documentação", "/** doc */ var", []Token{
-			{VAR, "var", 1},
+			{VAR, "var", 1, 12},
 		}},
 		{"divisão não é comentário", "a / b", []Token{
-			{IDENT, "a", 1}, {SLASH, "/", 1}, {IDENT, "b", 1},
+			{IDENT, "a", 1, 1}, {SLASH, "/", 1, 3}, {IDENT, "b", 1, 5},
 		}},
 		{"// dentro de string", "\"http://x\";", []Token{
-			{STRING, "http://x", 1}, {SEMICOLON, ";", 1},
+			{STRING, "http://x", 1, 1}, {SEMICOLON, ";", 1, 11},
 		}},
 		{"string com espaços", "\"Hello World\"", []Token{
-			{STRING, "Hello World", 1},
+			{STRING, "Hello World", 1, 1},
 		}},
 		{"identificadores parecidos com keyword", "while_x whilex _a1", []Token{
-			{IDENT, "while_x", 1}, {IDENT, "whilex", 1}, {IDENT, "_a1", 1},
+			{IDENT, "while_x", 1, 1}, {IDENT, "whilex", 1, 9}, {IDENT, "_a1", 1, 16},
 		}},
 		{"maior inteiro válido", "32767", []Token{
-			{NUMBER, "32767", 1},
+			{NUMBER, "32767", 1, 1},
 		}},
 		{"linhas contadas corretamente", "let\n\nx\n", []Token{
-			{LET, "let", 1}, {IDENT, "x", 3},
+			{LET, "let", 1, 1}, {IDENT, "x", 3, 1},
 		}},
 	}
 	for _, c := range casos {
@@ -87,8 +87,26 @@ func TestEOF(t *testing.T) {
 		t.Fatalf("primeiro token: %v", tok)
 	}
 	for i := 0; i < 3; i++ { // chamar de novo no fim deve sempre dar EOF
-		if tok, err := s.NextToken(); err != nil || tok.Type != EOF {
+		if tok, err := s.NextToken(); err != nil || tok.Type != EOF || tok.Column != 2 {
 			t.Errorf("esperava EOF, veio %v (err=%v)", tok, err)
+		}
+	}
+}
+
+func TestPosicaoDosErrosLexicos(t *testing.T) {
+	for _, src := range []string{
+		"// início\r\n\t/*é*/ @",
+		"// início\r\t/*é*/ 32768",
+		"// início\n\t/*é*/ \"sem fim",
+		"// início\n\t/*é*/ /*aberto\nna próxima linha",
+	} {
+		tok, err := New(src).NextToken()
+		e, ok := err.(*LexError)
+		if !ok || e.Line != 2 || e.Column != 8 || !strings.Contains(e.Error(), "linha 2, coluna 8") {
+			t.Fatalf("%q: esperado diagnóstico na linha 2, coluna 8; obtido %v", src, err)
+		}
+		if tok.Type != ILLEGAL || tok.Line != e.Line || tok.Column != e.Column {
+			t.Errorf("posição do token inválido diverge do diagnóstico: %+v", tok)
 		}
 	}
 }

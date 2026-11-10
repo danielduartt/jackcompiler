@@ -15,12 +15,13 @@ import (
 
 // SyntaxError é um erro de sintaxe, com a linha do token que causou o problema.
 type SyntaxError struct {
-	Line int
-	Msg  string
+	Line   int
+	Column int
+	Msg    string
 }
 
 func (e *SyntaxError) Error() string {
-	return fmt.Sprintf("Linha %d: %s", e.Line, e.Msg)
+	return fmt.Sprintf("Linha %d, coluna %d: %s", e.Line, e.Column, e.Msg)
 }
 
 // Parser guarda o estado da análise: o scanner, dois tokens e a saída XML.
@@ -97,7 +98,7 @@ func (p *Parser) run(rule func()) (xml string, err error) {
 
 // fail interrompe a análise com um erro de sintaxe na linha do próximo token.
 func (p *Parser) fail(format string, args ...any) {
-	panic(abort{&SyntaxError{Line: p.next.Line, Msg: fmt.Sprintf(format, args...)}})
+	panic(abort{&SyntaxError{Line: p.next.Line, Column: p.next.Column, Msg: fmt.Sprintf(format, args...)}})
 }
 
 // --- Consumo de tokens ---------------------------------------------------
