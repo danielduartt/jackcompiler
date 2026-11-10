@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"github.com/danielduartt/jackcompiler/scanner"
+	"github.com/danielduartt/jackcompiler/symtab"
 	"github.com/danielduartt/jackcompiler/vmwriter"
 )
 
@@ -26,6 +27,7 @@ func (e *SyntaxError) Error() string {
 
 // Parser guarda o estado da análise: o scanner, dois tokens e a saída XML.
 type Parser struct {
+	symbols   *symtab.SymbolTable
 	scan      *scanner.Scanner
 	cur       scanner.Token // último token consumido
 	next      scanner.Token // lookahead: próximo token, ainda NÃO consumido
@@ -56,9 +58,10 @@ func CompileExpression(src string) (string, error) {
 	return p.vm.String(), nil
 }
 
-// CompileClass gera VM para classes com funções void cujo corpo é return;.
+// CompileClass gera funções void com chamadas de classe via do e retorno vazio.
 func CompileClass(src string) (string, error) {
 	p := New(src)
+	p.symbols = symtab.New()
 	p.vm = vmwriter.New()
 	if _, err := p.Parse(); err != nil {
 		return "", err
@@ -215,10 +218,15 @@ func (p *Parser) parseClass() {
 func (p *Parser) parseClassVarDec() {
 	p.open("classVarDec")
 	p.consume(scanner.STATIC, scanner.FIELD)
+	kind := symtab.Static
+	if p.cur.Type == scanner.FIELD {
+		kind = symtab.Field
+	}
 	p.parseType()
-	p.consume(scanner.IDENT)
+	typ := p.cur.Value
+	p.declaredName(typ, kind)
 	for p.match(scanner.COMMA) {
-		p.consume(scanner.IDENT)
+		p.declaredName(typ, kind)
 	}
 	p.consume(scanner.SEMICOLON)
 	p.close("classVarDec")
@@ -229,12 +237,20 @@ func (p *Parser) parseType() {
 	p.consume(scanner.INT, scanner.CHAR, scanner.BOOLEAN, scanner.IDENT)
 }
 
+func (p *Parser) declaredName(typ string, kind symtab.Kind) {
+	p.consume(scanner.IDENT)
+	if p.symbols != nil {
+		p.symbols.Define(p.cur.Value, typ, kind)
+	}
+}
+
 // subroutineDec: ('constructor'|'function'|'method') ('void'|type)
 //
 //	subroutineName '(' parameterList ')' subroutineBody
 func (p *Parser) parseSubroutineDec() {
 	p.open("subroutineDec")
 	if p.vm != nil {
+		p.symbols.StartSubroutine()
 		p.consume(scanner.FUNCTION)
 		p.consume(scanner.VOID)
 	} else {
@@ -257,10 +273,10 @@ func (p *Parser) parseParameterList() {
 	p.open("parameterList")
 	if !p.nextIs(scanner.RPAREN) {
 		p.parseType()
-		p.consume(scanner.IDENT)
+		p.declaredName(p.cur.Value, symtab.Arg)
 		for p.match(scanner.COMMA) {
 			p.parseType()
-			p.consume(scanner.IDENT)
+			p.declaredName(p.cur.Value, symtab.Arg)
 		}
 	}
 	p.close("parameterList")
@@ -271,6 +287,9 @@ func (p *Parser) parseSubroutineBody() {
 	p.open("subroutineBody")
 	p.consume(scanner.LBRACE)
 	if p.vm != nil {
+		for p.nextIs(scanner.DO) {
+			p.parseDo()
+		}
 		p.parseReturn()
 		p.consume(scanner.RBRACE)
 		p.close("subroutineBody")
@@ -372,6 +391,9 @@ func (p *Parser) parseDo() {
 	p.consume(scanner.IDENT)
 	p.parseCallTail()
 	p.consume(scanner.SEMICOLON)
+	if p.vm != nil {
+		p.vm.WritePop(vmwriter.Temp, 0)
+	}
 	p.close("doStatement")
 }
 
@@ -493,22 +515,36 @@ func (p *Parser) parseTerm() {
 //	subroutineName '(' expressionList ')'
 //	| (className|varName) '.' subroutineName '(' expressionList ')'
 func (p *Parser) parseCallTail() {
+	name := p.cur.Value
+	if p.vm != nil {
+		if _, variable := p.symbols.Resolve(name); variable || !p.nextIs(scanner.DOT) {
+			p.fail("Geração VM de chamadas de método ainda não implementada")
+		}
+	}
 	if p.match(scanner.DOT) {
 		p.consume(scanner.IDENT)
+		name += "." + p.cur.Value
 	}
 	p.consume(scanner.LPAREN)
-	p.parseExpressionList()
+	count := p.parseExpressionList()
 	p.consume(scanner.RPAREN)
+	if p.vm != nil {
+		p.vm.WriteCall(name, count)
+	}
 }
 
 // expressionList: (expression (',' expression)*)?
-func (p *Parser) parseExpressionList() {
+func (p *Parser) parseExpressionList() int {
+	count := 0
 	p.open("expressionList")
 	if !p.nextIs(scanner.RPAREN) {
 		p.parseExpression()
+		count++
 		for p.match(scanner.COMMA) {
 			p.parseExpression()
+			count++
 		}
 	}
 	p.close("expressionList")
+	return count
 }
