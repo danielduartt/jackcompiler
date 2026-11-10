@@ -50,11 +50,20 @@ func listarJack(caminho string) ([]string, error) {
 		return nil, err
 	}
 	if !info.IsDir() {
+		if !info.Mode().IsRegular() || filepath.Ext(caminho) != ".jack" {
+			return nil, fmt.Errorf("entrada deve ser um arquivo .jack ou diretório: %s", caminho)
+		}
 		return []string{caminho}, nil
 	}
-	arquivos, err := filepath.Glob(filepath.Join(caminho, "*.jack"))
+	entradas, err := os.ReadDir(caminho)
 	if err != nil {
 		return nil, err
+	}
+	var arquivos []string
+	for _, entrada := range entradas {
+		if entrada.Type().IsRegular() && filepath.Ext(entrada.Name()) == ".jack" {
+			arquivos = append(arquivos, filepath.Join(caminho, entrada.Name()))
+		}
 	}
 	if len(arquivos) == 0 {
 		return nil, fmt.Errorf("nenhum .jack em %s", caminho)
