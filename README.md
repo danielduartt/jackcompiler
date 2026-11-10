@@ -54,6 +54,7 @@ jackcompiler/
 ├── parser/
 │   ├── parser.go
 │   ├── parser_test.go
+│   ├── oficial_test.go
 │   └── testdata/
 ├── scanner/
 │   ├── scanner.go
@@ -238,10 +239,37 @@ Os testes unitários complementam os programas de referência com verificações
 
 Os testes do parser verificam classes mínimas, declarações, subrotinas,
 parâmetros, variáveis locais, comandos, expressões, chamadas de subrotinas,
-acesso a arrays e erros sintáticos com identificação da linha. O parser foi
-validado contra os programas oficiais `Main`, `Square` e `SquareGame`; os
-arquivos gerados foram comparados com os respectivos gabaritos XML e ficaram
-idênticos.
+acesso a arrays e erros sintáticos com identificação da linha.
+
+### Teste automatizado do parser contra os gabaritos oficiais
+
+`TestParserXMLOficial` (em `parser/oficial_test.go`) lê cada `X.jack` de
+`ExpressionLessSquare`, `Square` e `ArrayTest`, executa o parser e compara a
+árvore gerada com o gabarito oficial `X.xml` da mesma pasta. Antes da
+comparação, os dois textos são normalizados: os espaços das pontas de cada linha
+e as linhas vazias são removidos, o que também descarta o `\r` do Windows.
+Diferenças de indentação são ignoradas, mas a sequência de tags e tokens precisa
+ser idêntica. A ausência de um fonte ou de um gabarito faz o teste falhar, e uma
+divergência informa a primeira linha diferente (nosso × oficial).
+
+```bash
+go test ./parser -run TestParserXMLOficial -v -count=1
+```
+
+### Status da validação
+
+| Programa | Arquivo | Scanner (`XT.xml`) | Parser (`X.xml`) |
+|---|---|---|---|
+| ExpressionLessSquare | `Main.jack` | ✅ idêntico | ✅ idêntico |
+| ExpressionLessSquare | `Square.jack` | ✅ idêntico | ✅ idêntico |
+| ExpressionLessSquare | `SquareGame.jack` | ✅ idêntico | ✅ idêntico |
+| Square | `Main.jack` | ✅ idêntico | ✅ idêntico |
+| Square | `Square.jack` | ✅ idêntico | ✅ idêntico |
+| Square | `SquareGame.jack` | ✅ idêntico | ✅ idêntico |
+| ArrayTest | `Main.jack` | ✅ idêntico | ✅ idêntico |
+
+O scanner é verificado por `TestXMLOficial` e o parser por
+`TestParserXMLOficial`; ambos rodam com `go test ./... -count=1`.
 
 Para comparar manualmente um arquivo do parser com o gabarito:
 
@@ -382,9 +410,9 @@ Os não-terminais são representados por tags como `<class>`,
 - O parser informa linha, mas não coluna, nos erros sintáticos atuais.
 - O parser para no primeiro erro e não realiza recuperação para continuar
   analisando o restante do arquivo.
-- A validação oficial automatizada existente cobre diretamente o scanner; a
-  comparação dos XML oficiais do parser é reproduzível pelo comando `diff`
-  documentado acima.
+- A comparação com os gabaritos oficiais é automatizada para o scanner
+  (`TestXMLOficial`) e para o parser (`TestParserXMLOficial`); o `diff`
+  documentado acima serve apenas para conferência manual.
 - O diretório `out/` é uma pasta de saída local. Seus arquivos não devem ser
   usados como gabaritos versionados.
 
@@ -392,7 +420,8 @@ Os não-terminais são representados por tags como `<class>`,
 
 - Scanner: implementado e validado com os gabaritos oficiais.
 - Parser: implementado com recursive descent e integrado à CLI.
-- XML do parser: validado contra `Main`, `Square` e `SquareGame`.
+- XML do parser: validado automaticamente contra `ExpressionLessSquare`,
+  `Square` e `ArrayTest` (7 arquivos, todos idênticos).
 - Testes: scanner com 95,0% de cobertura e parser com 90,6% de cobertura
   durante a validação atual.
 - Verificação estática: `go vet ./...` sem erros.
@@ -448,9 +477,9 @@ VM do nand2tetris, incluindo:
 
 ### Próximos passos recomendados
 
-1. criar testes automatizados para a comparação dos XML do parser;
-2. adicionar posição de coluna aos tokens e às mensagens de erro;
-3. implementar tabelas de símbolos;
+1. implementar o `VMWriter` e a tabela de símbolos;
+2. integrar a geração de código VM ao parser (etapas 1 e 2 da Unidade 2);
+3. adicionar posição de coluna aos tokens e às mensagens de erro.
 
 ## Checklist de reprodução da entrega
 
@@ -464,6 +493,32 @@ go vet ./...
 go build ./...
 go run . ./testdata/Square /tmp/jackcompiler-out
 ```
+
+## Uso de Inteligência Artificial
+
+| Item | Descrição |
+|---|---|
+| Ferramenta | Claude Code (extensão do VS Code) |
+| Modelo | Claude Opus 5.5 (`claude-opus-5-5`) |
+
+**Para que a IA foi usada:**
+
+- revisar o repositório para encontrar pendências das entregas anteriores
+  (teste automatizado do parser, seção de IA e tabela de validação no README);
+- escrever o teste `TestParserXMLOficial` (`parser/oficial_test.go`), que compara
+  a saída do parser com os gabaritos oficiais do Project 10;
+- atualizar este README;
+- planejar a divisão da Unidade 2 (tabela de símbolos, `VMWriter` e geração de
+  código VM) em etapas menores.
+
+<!-- TODO (dupla): descrever aqui se e como a IA foi usada nas entregas do
+scanner e do parser, ou declarar que não foi usada. -->
+
+**Papel da dupla:** o scanner e o parser foram implementados pela dupla. As
+sugestões da IA foram revisadas pela dupla e validadas executando `go test ./...`
+e `go vet ./...` e comparando a saída com os gabaritos oficiais do nand2tetris.
+A dupla é responsável por todo o código entregue e sabe explicá-lo.
+
 ## Referências
 
 - [Nand2Tetris](https://www.nand2tetris.org/)
