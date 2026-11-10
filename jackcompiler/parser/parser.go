@@ -25,12 +25,13 @@ func (e *SyntaxError) Error() string {
 
 // Parser guarda o estado da análise: o scanner, dois tokens e a saída XML.
 type Parser struct {
-	scan  *scanner.Scanner
-	cur   scanner.Token // último token consumido
-	next  scanner.Token // lookahead: próximo token, ainda NÃO consumido
-	out   strings.Builder
-	vm    *vmwriter.VMWriter
-	depth int // nível de indentação atual do XML
+	scan      *scanner.Scanner
+	cur       scanner.Token // último token consumido
+	next      scanner.Token // lookahead: próximo token, ainda NÃO consumido
+	out       strings.Builder
+	vm        *vmwriter.VMWriter
+	className string
+	depth     int // nível de indentação atual do XML
 }
 
 // New cria um parser para o texto-fonte src.
@@ -49,6 +50,16 @@ func CompileExpression(src string) (string, error) {
 		}
 	})
 	if err != nil {
+		return "", err
+	}
+	return p.vm.String(), nil
+}
+
+// CompileClass gera VM para classes com funções void cujo corpo é return;.
+func CompileClass(src string) (string, error) {
+	p := New(src)
+	p.vm = vmwriter.New()
+	if _, err := p.Parse(); err != nil {
 		return "", err
 	}
 	return p.vm.String(), nil
@@ -187,6 +198,7 @@ func (p *Parser) parseClass() {
 	p.open("class")
 	p.consume(scanner.CLASS)
 	p.consume(scanner.IDENT)
+	p.className = p.cur.Value
 	p.consume(scanner.LBRACE)
 	for p.nextIs(scanner.STATIC, scanner.FIELD) {
 		p.parseClassVarDec()
@@ -221,9 +233,17 @@ func (p *Parser) parseType() {
 //	subroutineName '(' parameterList ')' subroutineBody
 func (p *Parser) parseSubroutineDec() {
 	p.open("subroutineDec")
-	p.consume(scanner.CONSTRUCTOR, scanner.FUNCTION, scanner.METHOD)
-	p.consume(scanner.VOID, scanner.INT, scanner.CHAR, scanner.BOOLEAN, scanner.IDENT)
+	if p.vm != nil {
+		p.consume(scanner.FUNCTION)
+		p.consume(scanner.VOID)
+	} else {
+		p.consume(scanner.CONSTRUCTOR, scanner.FUNCTION, scanner.METHOD)
+		p.consume(scanner.VOID, scanner.INT, scanner.CHAR, scanner.BOOLEAN, scanner.IDENT)
+	}
 	p.consume(scanner.IDENT)
+	if p.vm != nil {
+		p.vm.WriteFunction(p.className+"."+p.cur.Value, 0)
+	}
 	p.consume(scanner.LPAREN)
 	p.parseParameterList()
 	p.consume(scanner.RPAREN)
@@ -249,6 +269,12 @@ func (p *Parser) parseParameterList() {
 func (p *Parser) parseSubroutineBody() {
 	p.open("subroutineBody")
 	p.consume(scanner.LBRACE)
+	if p.vm != nil {
+		p.parseReturn()
+		p.consume(scanner.RBRACE)
+		p.close("subroutineBody")
+		return
+	}
 	for p.nextIs(scanner.VAR) {
 		p.parseVarDec()
 	}
@@ -352,10 +378,16 @@ func (p *Parser) parseDo() {
 func (p *Parser) parseReturn() {
 	p.open("returnStatement")
 	p.consume(scanner.RETURN)
-	if !p.nextIs(scanner.SEMICOLON) {
-		p.parseExpression()
+	if p.vm != nil {
+		p.consume(scanner.SEMICOLON)
+		p.vm.WritePush(vmwriter.Constant, 0)
+		p.vm.WriteReturn()
+	} else {
+		if !p.nextIs(scanner.SEMICOLON) {
+			p.parseExpression()
+		}
+		p.consume(scanner.SEMICOLON)
 	}
-	p.consume(scanner.SEMICOLON)
 	p.close("returnStatement")
 }
 
