@@ -51,6 +51,26 @@ func New() *SymbolTable {
 	}
 }
 
+// StartSubroutine começa uma subrotina nova: apaga o escopo da subrotina
+// anterior e zera os contadores de arg e var. O escopo da classe continua.
+func (st *SymbolTable) StartSubroutine() {
+	st.subroutine = map[string]Symbol{}
+	st.counts[Arg] = 0
+	st.counts[Var] = 0
+}
+
+// Resolve procura um nome primeiro no escopo da subrotina e depois no da
+// classe, de modo que uma variável local "esconde" um field de mesmo nome.
+// ok == false indica que o nome não é variável: é um nome de classe
+// (Output.printInt) ou de subrotina.
+func (st *SymbolTable) Resolve(name string) (sym Symbol, ok bool) {
+	if sym, ok = st.subroutine[name]; ok {
+		return sym, true
+	}
+	sym, ok = st.class[name]
+	return sym, ok
+}
+
 // Define adiciona um identificador ao escopo do seu Kind e devolve o símbolo
 // criado, já com o índice.
 func (st *SymbolTable) Define(name, typ string, kind Kind) Symbol {
