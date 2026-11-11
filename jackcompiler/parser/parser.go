@@ -35,6 +35,7 @@ type Parser struct {
 	vm        *vmwriter.VMWriter
 	className string
 	function  string // nome VM da subrotina atual: Classe.nome
+	labels    int    // contador de rótulos de if/while, zerado a cada subrotina
 	depth     int    // nível de indentação atual do XML
 }
 
@@ -246,6 +247,15 @@ func (p *Parser) declaredName(typ string, kind symtab.Kind) {
 	}
 }
 
+// newLabel devolve um número novo para os rótulos de um if ou while. Como o
+// número é reservado ANTES de analisar o corpo, comandos aninhados recebem
+// números diferentes e os rótulos nunca se repetem dentro da função.
+func (p *Parser) newLabel() int {
+	n := p.labels
+	p.labels++
+	return n
+}
+
 // lookup resolve na tabela de símbolos o identificador que acabou de ser
 // consumido (p.cur). Um nome não declarado é erro, apontado na posição dele.
 func (p *Parser) lookup() symtab.Symbol {
@@ -264,6 +274,7 @@ func (p *Parser) parseSubroutineDec() {
 	p.open("subroutineDec")
 	if p.vm != nil {
 		p.symbols.StartSubroutine()
+		p.labels = 0                // rótulos VM só precisam ser únicos dentro da função
 		p.consume(scanner.FUNCTION) // constructor e method ficam para a Etapa 2
 		p.consume(scanner.VOID, scanner.INT, scanner.CHAR, scanner.BOOLEAN, scanner.IDENT)
 	} else {
@@ -330,9 +341,6 @@ func (p *Parser) parseVarDec() {
 func (p *Parser) parseStatements() {
 	p.open("statements")
 	for p.nextIs(scanner.LET, scanner.IF, scanner.WHILE, scanner.DO, scanner.RETURN) {
-		if p.vm != nil && p.nextIs(scanner.IF, scanner.WHILE) {
-			p.fail("Geração VM ainda não implementada para %s", describeFound(p.next))
-		}
 		switch p.next.Type {
 		case scanner.LET:
 			p.parseLet()
@@ -377,17 +385,31 @@ func (p *Parser) parseLet() {
 // ifStatement: 'if' '(' expression ')' '{' statements '}' ('else' '{' statements '}')?
 func (p *Parser) parseIf() {
 	p.open("ifStatement")
+	n := p.newLabel()
+	elseLabel, endLabel := fmt.Sprintf("IF_ELSE%d", n), fmt.Sprintf("IF_END%d", n)
+
 	p.consume(scanner.IF)
 	p.consume(scanner.LPAREN)
 	p.parseExpression()
 	p.consume(scanner.RPAREN)
+	if p.vm != nil { // condição falsa: pula o bloco "então"
+		p.vm.WriteArithmetic(vmwriter.Not)
+		p.vm.WriteIf(elseLabel)
+	}
 	p.consume(scanner.LBRACE)
 	p.parseStatements()
 	p.consume(scanner.RBRACE)
+	if p.vm != nil {
+		p.vm.WriteGoto(endLabel)
+		p.vm.WriteLabel(elseLabel)
+	}
 	if p.match(scanner.ELSE) {
 		p.consume(scanner.LBRACE)
 		p.parseStatements()
 		p.consume(scanner.RBRACE)
+	}
+	if p.vm != nil {
+		p.vm.WriteLabel(endLabel)
 	}
 	p.close("ifStatement")
 }
@@ -395,13 +417,27 @@ func (p *Parser) parseIf() {
 // whileStatement: 'while' '(' expression ')' '{' statements '}'
 func (p *Parser) parseWhile() {
 	p.open("whileStatement")
+	n := p.newLabel()
+	expLabel, endLabel := fmt.Sprintf("WHILE_EXP%d", n), fmt.Sprintf("WHILE_END%d", n)
+
+	if p.vm != nil {
+		p.vm.WriteLabel(expLabel)
+	}
 	p.consume(scanner.WHILE)
 	p.consume(scanner.LPAREN)
 	p.parseExpression()
 	p.consume(scanner.RPAREN)
+	if p.vm != nil { // condição falsa: sai do laço
+		p.vm.WriteArithmetic(vmwriter.Not)
+		p.vm.WriteIf(endLabel)
+	}
 	p.consume(scanner.LBRACE)
 	p.parseStatements()
 	p.consume(scanner.RBRACE)
+	if p.vm != nil {
+		p.vm.WriteGoto(expLabel)
+		p.vm.WriteLabel(endLabel)
+	}
 	p.close("whileStatement")
 }
 
