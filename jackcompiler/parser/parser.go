@@ -35,7 +35,7 @@ type Parser struct {
 	vm        *vmwriter.VMWriter
 	className string
 	function  string // nome VM da subrotina atual: Classe.nome
-	depth     int // nível de indentação atual do XML
+	depth     int    // nível de indentação atual do XML
 }
 
 // New cria um parser para o texto-fonte src.
@@ -46,6 +46,7 @@ func New(src string) *Parser {
 // CompileExpression traduz uma expressão de constantes inteiras, booleanas ou null.
 func CompileExpression(src string) (string, error) {
 	p := New(src)
+	p.symbols = symtab.New() // vazia: qualquer variável na expressão é erro
 	p.vm = vmwriter.New()
 	_, err := p.run(func() {
 		p.parseExpression()
@@ -245,6 +246,17 @@ func (p *Parser) declaredName(typ string, kind symtab.Kind) {
 	}
 }
 
+// lookup resolve na tabela de símbolos o identificador que acabou de ser
+// consumido (p.cur). Um nome não declarado é erro, apontado na posição dele.
+func (p *Parser) lookup() symtab.Symbol {
+	sym, ok := p.symbols.Resolve(p.cur.Value)
+	if !ok {
+		panic(abort{&SyntaxError{Line: p.cur.Line, Column: p.cur.Column,
+			Msg: fmt.Sprintf("variável '%s' não declarada", p.cur.Value)}})
+	}
+	return sym
+}
+
 // subroutineDec: ('constructor'|'function'|'method') ('void'|type)
 //
 //	subroutineName '(' parameterList ')' subroutineBody
@@ -285,23 +297,13 @@ func (p *Parser) parseParameterList() {
 func (p *Parser) parseSubroutineBody() {
 	p.open("subroutineBody")
 	p.consume(scanner.LBRACE)
+	for p.nextIs(scanner.VAR) {
+		p.parseVarDec()
+	}
 	if p.vm != nil {
-		for p.nextIs(scanner.VAR) {
-			p.parseVarDec()
-		}
 		// "function X.f nLocals" só pode ser escrito agora: o número de
 		// variáveis locais só é conhecido depois de todas as declarações var.
 		p.vm.WriteFunction(p.function, p.symbols.VarCount(symtab.Var))
-		for p.nextIs(scanner.DO) {
-			p.parseDo()
-		}
-		p.parseReturn()
-		p.consume(scanner.RBRACE)
-		p.close("subroutineBody")
-		return
-	}
-	for p.nextIs(scanner.VAR) {
-		p.parseVarDec()
 	}
 	p.parseStatements()
 	p.consume(scanner.RBRACE)
@@ -328,6 +330,9 @@ func (p *Parser) parseVarDec() {
 func (p *Parser) parseStatements() {
 	p.open("statements")
 	for p.nextIs(scanner.LET, scanner.IF, scanner.WHILE, scanner.DO, scanner.RETURN) {
+		if p.vm != nil && p.nextIs(scanner.IF, scanner.WHILE) {
+			p.fail("Geração VM ainda não implementada para %s", describeFound(p.next))
+		}
 		switch p.next.Type {
 		case scanner.LET:
 			p.parseLet()
@@ -349,6 +354,13 @@ func (p *Parser) parseLet() {
 	p.open("letStatement")
 	p.consume(scanner.LET)
 	p.consume(scanner.IDENT)
+	var target symtab.Symbol
+	if p.vm != nil {
+		target = p.lookup()
+		if p.nextIs(scanner.LBRACKET) {
+			p.fail("Geração VM de arrays ainda não implementada")
+		}
+	}
 	if p.match(scanner.LBRACKET) {
 		p.parseExpression()
 		p.consume(scanner.RBRACKET)
@@ -356,6 +368,9 @@ func (p *Parser) parseLet() {
 	p.consume(scanner.EQ)
 	p.parseExpression()
 	p.consume(scanner.SEMICOLON)
+	if p.vm != nil {
+		p.vm.WritePopSymbol(target) // o valor da expressão vai para a variável
+	}
 	p.close("letStatement")
 }
 
@@ -407,15 +422,14 @@ func (p *Parser) parseDo() {
 func (p *Parser) parseReturn() {
 	p.open("returnStatement")
 	p.consume(scanner.RETURN)
+	if !p.nextIs(scanner.SEMICOLON) {
+		p.parseExpression()
+	} else if p.vm != nil {
+		p.vm.WritePush(vmwriter.Constant, 0) // "return;" devolve 0 (função void)
+	}
+	p.consume(scanner.SEMICOLON)
 	if p.vm != nil {
-		p.consume(scanner.SEMICOLON)
-		p.vm.WritePush(vmwriter.Constant, 0)
 		p.vm.WriteReturn()
-	} else {
-		if !p.nextIs(scanner.SEMICOLON) {
-			p.parseExpression()
-		}
-		p.consume(scanner.SEMICOLON)
 	}
 	p.close("returnStatement")
 }
@@ -461,7 +475,7 @@ func (p *Parser) parseExpression() {
 // '[' = acesso a array; '(' ou '.' = chamada de subrotina; outro = variável.
 func (p *Parser) parseTerm() {
 	p.open("term")
-	if p.vm != nil && p.nextIs(scanner.IDENT, scanner.STRING, scanner.THIS) {
+	if p.vm != nil && p.nextIs(scanner.STRING, scanner.THIS) {
 		p.fail("Geração VM ainda não implementada para %s", describeFound(p.next))
 	}
 	switch p.next.Type {
@@ -484,11 +498,19 @@ func (p *Parser) parseTerm() {
 	case scanner.IDENT:
 		p.consume(scanner.IDENT)
 		switch {
-		case p.match(scanner.LBRACKET):
+		case p.nextIs(scanner.LBRACKET):
+			if p.vm != nil {
+				p.fail("Geração VM de arrays ainda não implementada")
+			}
+			p.consume(scanner.LBRACKET)
 			p.parseExpression()
 			p.consume(scanner.RBRACKET)
 		case p.nextIs(scanner.LPAREN, scanner.DOT):
 			p.parseCallTail()
+		default: // variável simples: empilha seu valor
+			if p.vm != nil {
+				p.vm.WritePushSymbol(p.lookup())
+			}
 		}
 
 	case scanner.LPAREN:

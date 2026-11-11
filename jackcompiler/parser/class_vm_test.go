@@ -1,6 +1,9 @@
 package parser
 
-import "testing"
+import (
+	"strings"
+	"testing"
+)
 
 func TestCompileSeven(t *testing.T) {
 	src := "class Main { function void main() { do Output.printInt(1 + (2 * 3)); return; } }"
@@ -49,5 +52,55 @@ func TestFunctionLocalsCount(t *testing.T) {
 	want := "function Main.f 3\npush constant 0\nreturn\n"
 	if got, err := CompileClass(src); err != nil || got != want {
 		t.Fatalf("VM = %q, erro = %v, esperado %q", got, err, want)
+	}
+}
+
+// Variáveis viram push/pop no segmento do seu Kind: arg -> argument,
+// var -> local, static -> static.
+func TestLetAndReturnWithVariables(t *testing.T) {
+	src := `class Main {
+  static int count;
+  function int f(int a) {
+    var int x;
+    let x = a + 1;
+    let count = count + x;
+    return Math.abs(x);
+  }
+}`
+	want := "function Main.f 1\n" +
+		"push argument 0\npush constant 1\nadd\npop local 0\n" +
+		"push static 0\npush local 0\nadd\npop static 0\n" +
+		"push local 0\ncall Math.abs 1\nreturn\n"
+	if got, err := CompileClass(src); err != nil || got != want {
+		t.Fatalf("VM = %q, erro = %v, esperado %q", got, err, want)
+	}
+}
+
+func TestUndeclaredVariable(t *testing.T) {
+	for _, src := range []string{
+		"class Main { function void f() { let y = 1; return; } }",
+		"class Main { function int f() { return y; } }",
+	} {
+		got, err := CompileClass(src)
+		if err == nil || got != "" {
+			t.Errorf("%q: esperado erro de variável não declarada, obtido %q, %v", src, got, err)
+			continue
+		}
+		if !strings.Contains(err.Error(), "'y' não declarada") {
+			t.Errorf("%q: mensagem inesperada: %v", src, err)
+		}
+	}
+}
+
+// Arrays são da Etapa 2: por enquanto a geração recusa com erro, em vez de
+// produzir código errado.
+func TestArraysNotYetSupported(t *testing.T) {
+	for _, src := range []string{
+		"class Main { function void f(Array a) { let a[0] = 1; return; } }",
+		"class Main { function int f(Array a) { return a[0]; } }",
+	} {
+		if got, err := CompileClass(src); err == nil || got != "" {
+			t.Errorf("%q: esperado erro, obtido %q, %v", src, got, err)
+		}
 	}
 }
