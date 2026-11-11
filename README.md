@@ -72,18 +72,20 @@ comportamento esperado.
 
 | Etapa | Programa | O que exercita | Como conferir | Resultado |
 |---|---|---|---|---|
-| 1 | **Seven** | expressão aritmética, `do`, chamada ao SO | imprime `7` no canto da tela | ⏳ compila (teste automatizado); falta rodar no VM Emulator |
-| 1 | **ConvertToBin** | `while`, `if` aninhados, `&` e `~` | com um valor em `RAM[8000]`, `RAM[8001..8016]` recebem os bits | ⏳ a validar |
-| 2 | **Square** | construtores, métodos, campos | quadrado se move com as setas; `z`/`x` mudam o tamanho | ❌ Etapa 2 em desenvolvimento |
-| 2 | **Average** | arrays, strings, teclado | pede N números e imprime a média | ❌ Etapa 2 em desenvolvimento |
-| 2 | **Pong** | programa orientado a objetos completo | bola, raquete e placar funcionam | ❌ Etapa 2 em desenvolvimento |
-| 2 | **ComplexArrays** | índices aninhados, arrays de arrays | valor esperado igual ao obtido em cada teste | ❌ Etapa 2 em desenvolvimento |
+| 1 | **Seven** | expressão aritmética, `do`, chamada ao SO | imprime `7` no canto da tela | ⏳ compila; falta confirmar no VM Emulator |
+| 1 | **ConvertToBin** | `while`, `if` aninhados, `&` e `~` | com um valor em `RAM[8000]`, `RAM[8001..8016]` recebem os bits | ⏳ compila; falta confirmar no VM Emulator |
+| 2 | **Square** | construtores, métodos, campos | quadrado se move com as setas; `z`/`x` mudam o tamanho | ⏳ compila; falta confirmar no VM Emulator |
+| 2 | **Average** | arrays, strings, teclado | pede N números e imprime a média | ⏳ compila; falta confirmar no VM Emulator |
+| 2 | **Pong** | programa orientado a objetos completo | bola, raquete e placar funcionam | ⏳ compila; falta confirmar no VM Emulator |
+| 2 | **ComplexArrays** | índices aninhados, arrays de arrays | valor esperado igual ao obtido em cada teste | ⏳ compila; falta confirmar no VM Emulator |
 
-Já implementado: expressões, constantes, variáveis (`static`, `field`, `arg`,
-`var`), `let`, `do`, `return`, `if`/`else` e `while` com rótulos únicos, e
-chamadas `Classe.funcao(...)`. Falta (Etapa 2): construtores, métodos e chamadas
-de método, `this`, arrays e strings constantes. Por enquanto, esses casos são
-recusados com uma mensagem de erro em vez de gerar código incorreto.
+<!-- TODO (dupla): trocar cada ⏳ por ✅ (ou ❌) depois de executar no VM Emulator. -->
+
+O compilador implementa toda a linguagem Jack: expressões, constantes,
+variáveis (`static`, `field`, `arg`, `var`), `let`, `do`, `return`,
+`if`/`else` e `while` com rótulos únicos, construtores, métodos, `this`,
+chamadas de função e de método, arrays e strings constantes. O teste
+`TestCompilaProgramasProject11` garante que os seis programas compilam sem erro.
 
 Unidades anteriores: o XML do scanner e do parser é idêntico aos gabaritos
 oficiais nos 7 arquivos de `ExpressionLessSquare`, `Square` e `ArrayTest`
