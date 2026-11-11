@@ -385,18 +385,31 @@ func (p *Parser) parseLet() {
 	var target symtab.Symbol
 	if p.vm != nil {
 		target = p.lookup()
-		if p.nextIs(scanner.LBRACKET) {
-			p.fail("Geração VM de arrays ainda não implementada")
-		}
 	}
-	if p.match(scanner.LBRACKET) {
+	array := p.match(scanner.LBRACKET)
+	if array { // let a[i] = ...: o endereço a+i fica na pilha
+		if p.vm != nil {
+			p.vm.WritePushSymbol(target)
+		}
 		p.parseExpression()
 		p.consume(scanner.RBRACKET)
+		if p.vm != nil {
+			p.vm.WriteArithmetic(vmwriter.Add)
+		}
 	}
 	p.consume(scanner.EQ)
 	p.parseExpression()
 	p.consume(scanner.SEMICOLON)
-	if p.vm != nil {
+	switch {
+	case p.vm == nil:
+	case array:
+		// Só agora o pointer 1 é ajustado: a expressão da direita pode ter
+		// acessado outro array e alterado o pointer 1 no caminho.
+		p.vm.WritePop(vmwriter.Temp, 0)    // valor
+		p.vm.WritePop(vmwriter.Pointer, 1) // that = a + i
+		p.vm.WritePush(vmwriter.Temp, 0)
+		p.vm.WritePop(vmwriter.That, 0) // a[i] = valor
+	default:
 		p.vm.WritePopSymbol(target) // o valor da expressão vai para a variável
 	}
 	p.close("letStatement")
@@ -556,13 +569,18 @@ func (p *Parser) parseTerm() {
 	case scanner.IDENT:
 		p.consume(scanner.IDENT)
 		switch {
-		case p.nextIs(scanner.LBRACKET):
+		case p.nextIs(scanner.LBRACKET): // a[i]: lê o endereço a + i
 			if p.vm != nil {
-				p.fail("Geração VM de arrays ainda não implementada")
+				p.vm.WritePushSymbol(p.lookup())
 			}
 			p.consume(scanner.LBRACKET)
 			p.parseExpression()
 			p.consume(scanner.RBRACKET)
+			if p.vm != nil {
+				p.vm.WriteArithmetic(vmwriter.Add)
+				p.vm.WritePop(vmwriter.Pointer, 1)
+				p.vm.WritePush(vmwriter.That, 0)
+			}
 		case p.nextIs(scanner.LPAREN, scanner.DOT):
 			p.parseCallTail()
 		default: // variável simples: empilha seu valor

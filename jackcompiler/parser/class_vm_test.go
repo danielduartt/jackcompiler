@@ -121,16 +121,32 @@ func TestUndeclaredVariable(t *testing.T) {
 	}
 }
 
-// Arrays são da Etapa 2: por enquanto a geração recusa com erro, em vez de
-// produzir código errado.
-func TestArraysNotYetSupported(t *testing.T) {
-	for _, src := range []string{
-		"class Main { function void f(Array a) { let a[0] = 1; return; } }",
-		"class Main { function int f(Array a) { return a[0]; } }",
-	} {
-		if got, err := CompileClass(src); err == nil || got != "" {
-			t.Errorf("%q: esperado erro, obtido %q, %v", src, got, err)
-		}
+func TestArrayRead(t *testing.T) {
+	src := "class Main { function int f(Array a, int i) { return a[i + 1]; } }"
+	want := "function Main.f 0\n" +
+		"push argument 0\npush argument 1\npush constant 1\nadd\nadd\n" +
+		"pop pointer 1\npush that 0\nreturn\n"
+	if got, err := CompileClass(src); err != nil || got != want {
+		t.Fatalf("VM = %q, erro = %v, esperado %q", got, err, want)
+	}
+}
+
+// let a[b[i]] = a[i]: os dois lados acessam arrays. O endereço da esquerda
+// fica na pilha e o pointer 1 só é ajustado depois de calcular a direita.
+func TestArrayWriteWithArraysOnBothSides(t *testing.T) {
+	src := "class Main { function void f(Array a, Array b, int i) { let a[b[i]] = a[i]; return; } }"
+	want := "function Main.f 0\n" +
+		// endereço da esquerda: a + b[i]
+		"push argument 0\n" +
+		"push argument 1\npush argument 2\nadd\npop pointer 1\npush that 0\n" +
+		"add\n" +
+		// valor da direita: a[i]
+		"push argument 0\npush argument 2\nadd\npop pointer 1\npush that 0\n" +
+		// atribuição
+		"pop temp 0\npop pointer 1\npush temp 0\npop that 0\n" +
+		"push constant 0\nreturn\n"
+	if got, err := CompileClass(src); err != nil || got != want {
+		t.Fatalf("VM = %q, erro = %v, esperado %q", got, err, want)
 	}
 }
 
