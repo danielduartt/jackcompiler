@@ -34,9 +34,10 @@ type Parser struct {
 	out       strings.Builder
 	vm        *vmwriter.VMWriter
 	className string
-	function  string // nome VM da subrotina atual: Classe.nome
-	labels    int    // contador de rótulos de if/while, zerado a cada subrotina
-	depth     int    // nível de indentação atual do XML
+	function  string            // nome VM da subrotina atual: Classe.nome
+	labels    int               // contador de rótulos de if/while, zerado a cada subrotina
+	subKind   scanner.TokenType // CONSTRUCTOR, FUNCTION ou METHOD
+	depth     int               // nível de indentação atual do XML
 }
 
 // New cria um parser para o texto-fonte src.
@@ -247,6 +248,22 @@ func (p *Parser) declaredName(typ string, kind symtab.Kind) {
 	}
 }
 
+// writePrologue ancora o segmento this (pointer 0) no objeto certo:
+//   - constructor: aloca um bloco com uma palavra por field e o torna o this;
+//   - method: o objeto chega como argument 0;
+//   - function: não tem objeto, nada a fazer.
+func (p *Parser) writePrologue() {
+	switch p.subKind {
+	case scanner.CONSTRUCTOR:
+		p.vm.WritePush(vmwriter.Constant, p.symbols.VarCount(symtab.Field))
+		p.vm.WriteCall("Memory.alloc", 1)
+		p.vm.WritePop(vmwriter.Pointer, 0)
+	case scanner.METHOD:
+		p.vm.WritePush(vmwriter.Argument, 0)
+		p.vm.WritePop(vmwriter.Pointer, 0)
+	}
+}
+
 // newLabel devolve um número novo para os rótulos de um if ou while. Como o
 // número é reservado ANTES de analisar o corpo, comandos aninhados recebem
 // números diferentes e os rótulos nunca se repetem dentro da função.
@@ -274,13 +291,15 @@ func (p *Parser) parseSubroutineDec() {
 	p.open("subroutineDec")
 	if p.vm != nil {
 		p.symbols.StartSubroutine()
-		p.labels = 0                // rótulos VM só precisam ser únicos dentro da função
-		p.consume(scanner.FUNCTION) // constructor e method ficam para a Etapa 2
-		p.consume(scanner.VOID, scanner.INT, scanner.CHAR, scanner.BOOLEAN, scanner.IDENT)
-	} else {
-		p.consume(scanner.CONSTRUCTOR, scanner.FUNCTION, scanner.METHOD)
-		p.consume(scanner.VOID, scanner.INT, scanner.CHAR, scanner.BOOLEAN, scanner.IDENT)
+		p.labels = 0 // rótulos VM só precisam ser únicos dentro da função
 	}
+	p.consume(scanner.CONSTRUCTOR, scanner.FUNCTION, scanner.METHOD)
+	p.subKind = p.cur.Type
+	if p.vm != nil && p.subKind == scanner.METHOD {
+		// Em um método, o objeto é o argument 0; os parâmetros começam em 1.
+		p.symbols.Define("this", p.className, symtab.Arg)
+	}
+	p.consume(scanner.VOID, scanner.INT, scanner.CHAR, scanner.BOOLEAN, scanner.IDENT)
 	p.consume(scanner.IDENT)
 	p.function = p.className + "." + p.cur.Value
 	p.consume(scanner.LPAREN)
@@ -315,6 +334,7 @@ func (p *Parser) parseSubroutineBody() {
 		// "function X.f nLocals" só pode ser escrito agora: o número de
 		// variáveis locais só é conhecido depois de todas as declarações var.
 		p.vm.WriteFunction(p.function, p.symbols.VarCount(symtab.Var))
+		p.writePrologue()
 	}
 	p.parseStatements()
 	p.consume(scanner.RBRACE)
@@ -511,7 +531,7 @@ func (p *Parser) parseExpression() {
 // '[' = acesso a array; '(' ou '.' = chamada de subrotina; outro = variável.
 func (p *Parser) parseTerm() {
 	p.open("term")
-	if p.vm != nil && p.nextIs(scanner.STRING, scanner.THIS) {
+	if p.vm != nil && p.nextIs(scanner.STRING) {
 		p.fail("Geração VM ainda não implementada para %s", describeFound(p.next))
 	}
 	switch p.next.Type {
@@ -528,6 +548,8 @@ func (p *Parser) parseTerm() {
 				p.vm.WriteArithmetic(vmwriter.Neg)
 			case scanner.FALSE, scanner.NULL:
 				p.vm.WritePush(vmwriter.Constant, 0)
+			case scanner.THIS: // o endereço do objeto atual
+				p.vm.WritePush(vmwriter.Pointer, 0)
 			}
 		}
 

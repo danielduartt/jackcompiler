@@ -17,7 +17,7 @@ func TestCompileExpression(t *testing.T) {
 }
 
 func TestCompileExpressionRejectsIncompleteOutput(t *testing.T) {
-	for _, src := range []string{"1 +", "1 2", "(3", "1 + x", "this", `"abc"`} {
+	for _, src := range []string{"1 +", "1 2", "(3", "1 + x", `"abc"`} {
 		if got, err := CompileExpression(src); err == nil || got != "" {
 			t.Errorf("%q: esperado erro sem VM parcial, obtido %q, %v", src, got, err)
 		}

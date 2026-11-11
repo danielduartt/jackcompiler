@@ -39,8 +39,9 @@ func TestCompileVoidFunction(t *testing.T) {
 	}
 }
 
+// Um erro em qualquer subrotina descarta a classe inteira: nada de VM parcial.
 func TestCompileClassRejectsPartialVM(t *testing.T) {
-	got, err := CompileClass("class App { function void start() { return; } method void move() { return; } }")
+	got, err := CompileClass("class App { function void start() { return; } function void move() { let x = 1; return; } }")
 	if err == nil || got != "" {
 		t.Fatalf("esperado erro sem VM parcial, obtido %q, %v", got, err)
 	}
@@ -180,5 +181,46 @@ func TestNestedLabelsAreUnique(t *testing.T) {
 	}
 	if !strings.Contains(got, "function Main.g 0\nlabel WHILE_EXP0\n") {
 		t.Errorf("a contagem de rótulos deveria recomeçar em g:\n%s", got)
+	}
+}
+
+// O construtor aloca uma palavra por field (static não conta), ancora o this
+// e devolve o endereço do objeto.
+func TestConstructor(t *testing.T) {
+	src := `class Point {
+  field int x, y;
+  static int count;
+  constructor Point new(int ax, int ay) {
+    let x = ax;
+    let y = ay;
+    return this;
+  }
+}`
+	want := "function Point.new 0\n" +
+		"push constant 2\ncall Memory.alloc 1\npop pointer 0\n" +
+		"push argument 0\npop this 0\n" +
+		"push argument 1\npop this 1\n" +
+		"push pointer 0\nreturn\n"
+	if got, err := CompileClass(src); err != nil || got != want {
+		t.Fatalf("VM = %q, erro = %v, esperado %q", got, err, want)
+	}
+}
+
+// O método ancora o this no argument 0; os parâmetros começam em argument 1.
+func TestMethod(t *testing.T) {
+	src := `class Point {
+  field int x, y;
+  method int plus(int dx) {
+    var int r;
+    let r = x + dx;
+    return r;
+  }
+}`
+	want := "function Point.plus 1\n" +
+		"push argument 0\npop pointer 0\n" +
+		"push this 0\npush argument 1\nadd\npop local 0\n" +
+		"push local 0\nreturn\n"
+	if got, err := CompileClass(src); err != nil || got != want {
+		t.Fatalf("VM = %q, erro = %v, esperado %q", got, err, want)
 	}
 }
