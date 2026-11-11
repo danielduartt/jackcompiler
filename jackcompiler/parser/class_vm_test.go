@@ -24,10 +24,38 @@ func TestDoArgumentCounts(t *testing.T) {
 	}
 }
 
-func TestDoRejectsObjectReceiver(t *testing.T) {
-	got, err := CompileClass("class App { function void run(Game g) { do g.play(); return; } }")
-	if err == nil || got != "" {
-		t.Fatalf("chamada de método aceita como função de classe: VM = %q, erro = %v", got, err)
+// As três formas de chamada: obj.metodo() empilha obj e usa o TIPO de obj;
+// metodo() empilha o próprio objeto; Classe.funcao() não empilha nada extra.
+func TestSubroutineCalls(t *testing.T) {
+	src := `class Game {
+  field Ball ball;
+  method void run(Ball b) {
+    do b.move(1);
+    do ball.draw();
+    do step();
+    do Output.println();
+    return;
+  }
+  method void step() { return; }
+}`
+	want := "function Game.run 0\npush argument 0\npop pointer 0\n" +
+		"push argument 1\npush constant 1\ncall Ball.move 2\npop temp 0\n" +
+		"push this 0\ncall Ball.draw 1\npop temp 0\n" +
+		"push pointer 0\ncall Game.step 1\npop temp 0\n" +
+		"call Output.println 0\npop temp 0\n" +
+		"push constant 0\nreturn\n" +
+		"function Game.step 0\npush argument 0\npop pointer 0\npush constant 0\nreturn\n"
+	if got, err := CompileClass(src); err != nil || got != want {
+		t.Fatalf("VM = %q, erro = %v, esperado %q", got, err, want)
+	}
+}
+
+// Chamada de método dentro de uma expressão também empilha o objeto antes.
+func TestMethodCallInExpression(t *testing.T) {
+	src := "class Main { function int f(Point p) { return p.getX() + 1; } }"
+	want := "function Main.f 0\npush argument 0\ncall Point.getX 1\npush constant 1\nadd\nreturn\n"
+	if got, err := CompileClass(src); err != nil || got != want {
+		t.Fatalf("VM = %q, erro = %v, esperado %q", got, err, want)
 	}
 }
 

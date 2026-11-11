@@ -600,22 +600,37 @@ func (p *Parser) parseTerm() {
 //
 //	subroutineName '(' expressionList ')'
 //	| (className|varName) '.' subroutineName '(' expressionList ')'
+//
+// Na VM há três casos, decididos pela tabela de símbolos:
+//   - obj.metodo(...): obj é variável; empilha obj como argumento extra e
+//     chama Tipo.metodo, em que Tipo é o tipo declarado de obj;
+//   - Classe.funcao(...): o nome não é variável; chamada comum;
+//   - metodo(...): sem prefixo, é um método do próprio objeto (pointer 0).
 func (p *Parser) parseCallTail() {
-	name := p.cur.Value
-	if p.vm != nil {
-		if _, variable := p.symbols.Resolve(name); variable || !p.nextIs(scanner.DOT) {
-			p.fail("Geração VM de chamadas de método ainda não implementada")
-		}
-	}
+	first := p.cur.Value
+	name := first
+	receiver := 0 // 1 quando um objeto é empilhado antes dos argumentos
 	if p.match(scanner.DOT) {
 		p.consume(scanner.IDENT)
+		if p.vm != nil {
+			if obj, ok := p.symbols.Resolve(first); ok {
+				p.vm.WritePushSymbol(obj)
+				name, receiver = obj.Type, 1
+			}
+		}
 		name += "." + p.cur.Value
+	} else {
+		name = p.className + "." + first
+		receiver = 1
+		if p.vm != nil {
+			p.vm.WritePush(vmwriter.Pointer, 0)
+		}
 	}
 	p.consume(scanner.LPAREN)
 	count := p.parseExpressionList()
 	p.consume(scanner.RPAREN)
 	if p.vm != nil {
-		p.vm.WriteCall(name, count)
+		p.vm.WriteCall(name, count+receiver)
 	}
 }
 
