@@ -42,3 +42,12 @@ func TestCompileClassRejectsPartialVM(t *testing.T) {
 		t.Fatalf("esperado erro sem VM parcial, obtido %q, %v", got, err)
 	}
 }
+
+// O "function" leva o número de variáveis locais, contado depois de todos os var.
+func TestFunctionLocalsCount(t *testing.T) {
+	src := "class Main { function int f(int a, int b) { var int x, y; var boolean ok; return; } }"
+	want := "function Main.f 3\npush constant 0\nreturn\n"
+	if got, err := CompileClass(src); err != nil || got != want {
+		t.Fatalf("VM = %q, erro = %v, esperado %q", got, err, want)
+	}
+}

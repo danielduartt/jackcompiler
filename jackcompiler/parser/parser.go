@@ -34,6 +34,7 @@ type Parser struct {
 	out       strings.Builder
 	vm        *vmwriter.VMWriter
 	className string
+	function  string // nome VM da subrotina atual: Classe.nome
 	depth     int // nível de indentação atual do XML
 }
 
@@ -251,16 +252,14 @@ func (p *Parser) parseSubroutineDec() {
 	p.open("subroutineDec")
 	if p.vm != nil {
 		p.symbols.StartSubroutine()
-		p.consume(scanner.FUNCTION)
-		p.consume(scanner.VOID)
+		p.consume(scanner.FUNCTION) // constructor e method ficam para a Etapa 2
+		p.consume(scanner.VOID, scanner.INT, scanner.CHAR, scanner.BOOLEAN, scanner.IDENT)
 	} else {
 		p.consume(scanner.CONSTRUCTOR, scanner.FUNCTION, scanner.METHOD)
 		p.consume(scanner.VOID, scanner.INT, scanner.CHAR, scanner.BOOLEAN, scanner.IDENT)
 	}
 	p.consume(scanner.IDENT)
-	if p.vm != nil {
-		p.vm.WriteFunction(p.className+"."+p.cur.Value, 0)
-	}
+	p.function = p.className + "." + p.cur.Value
 	p.consume(scanner.LPAREN)
 	p.parseParameterList()
 	p.consume(scanner.RPAREN)
@@ -287,6 +286,12 @@ func (p *Parser) parseSubroutineBody() {
 	p.open("subroutineBody")
 	p.consume(scanner.LBRACE)
 	if p.vm != nil {
+		for p.nextIs(scanner.VAR) {
+			p.parseVarDec()
+		}
+		// "function X.f nLocals" só pode ser escrito agora: o número de
+		// variáveis locais só é conhecido depois de todas as declarações var.
+		p.vm.WriteFunction(p.function, p.symbols.VarCount(symtab.Var))
 		for p.nextIs(scanner.DO) {
 			p.parseDo()
 		}
@@ -308,9 +313,10 @@ func (p *Parser) parseVarDec() {
 	p.open("varDec")
 	p.consume(scanner.VAR)
 	p.parseType()
-	p.consume(scanner.IDENT)
+	typ := p.cur.Value
+	p.declaredName(typ, symtab.Var)
 	for p.match(scanner.COMMA) {
-		p.consume(scanner.IDENT)
+		p.declaredName(typ, symtab.Var)
 	}
 	p.consume(scanner.SEMICOLON)
 	p.close("varDec")
