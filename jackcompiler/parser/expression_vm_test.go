@@ -8,6 +8,11 @@ func TestCompileExpression(t *testing.T) {
 		{"2 + (3 * -4)", "push constant 2\npush constant 3\npush constant 4\nneg\ncall Math.multiply 2\nadd\n"},
 		{"~false = true", "push constant 0\nnot\npush constant 1\nneg\neq\n"},
 		{"null", "push constant 0\n"},
+		{`"Hi!"`, "push constant 3\ncall String.new 1\n" +
+			"push constant 72\ncall String.appendChar 2\n" +
+			"push constant 105\ncall String.appendChar 2\n" +
+			"push constant 33\ncall String.appendChar 2\n"},
+		{`""`, "push constant 0\ncall String.new 1\n"},
 	} {
 		got, err := CompileExpression(tc.src)
 		if err != nil || got != tc.want {
@@ -17,7 +22,7 @@ func TestCompileExpression(t *testing.T) {
 }
 
 func TestCompileExpressionRejectsIncompleteOutput(t *testing.T) {
-	for _, src := range []string{"1 +", "1 2", "(3", "1 + x", `"abc"`} {
+	for _, src := range []string{"1 +", "1 2", "(3", "1 + x"} {
 		if got, err := CompileExpression(src); err == nil || got != "" {
 			t.Errorf("%q: esperado erro sem VM parcial, obtido %q, %v", src, got, err)
 		}

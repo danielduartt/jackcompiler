@@ -264,6 +264,19 @@ func (p *Parser) writePrologue() {
 	}
 }
 
+// writeString cria a string constante em tempo de execução: String.new(n)
+// e um String.appendChar(c) por caractere. O appendChar devolve a própria
+// string, que fica no topo da pilha para o caractere seguinte.
+func (p *Parser) writeString(s string) {
+	chars := []rune(s)
+	p.vm.WritePush(vmwriter.Constant, len(chars))
+	p.vm.WriteCall("String.new", 1)
+	for _, c := range chars {
+		p.vm.WritePush(vmwriter.Constant, int(c))
+		p.vm.WriteCall("String.appendChar", 2)
+	}
+}
+
 // newLabel devolve um número novo para os rótulos de um if ou while. Como o
 // número é reservado ANTES de analisar o corpo, comandos aninhados recebem
 // números diferentes e os rótulos nunca se repetem dentro da função.
@@ -544,9 +557,6 @@ func (p *Parser) parseExpression() {
 // '[' = acesso a array; '(' ou '.' = chamada de subrotina; outro = variável.
 func (p *Parser) parseTerm() {
 	p.open("term")
-	if p.vm != nil && p.nextIs(scanner.STRING) {
-		p.fail("Geração VM ainda não implementada para %s", describeFound(p.next))
-	}
 	switch p.next.Type {
 	case scanner.NUMBER, scanner.STRING,
 		scanner.TRUE, scanner.FALSE, scanner.NULL, scanner.THIS:
@@ -563,6 +573,8 @@ func (p *Parser) parseTerm() {
 				p.vm.WritePush(vmwriter.Constant, 0)
 			case scanner.THIS: // o endereço do objeto atual
 				p.vm.WritePush(vmwriter.Pointer, 0)
+			case scanner.STRING:
+				p.writeString(p.cur.Value)
 			}
 		}
 
