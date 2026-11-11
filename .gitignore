@@ -34,3 +34,6 @@ go.work.sum
 # Editor/IDE
 # .idea/
 # .vscode/
+
+# Código VM gerado pelo compilador nos programas do Project 11
+/jackcompiler/testdata/11/**/*.vm
