@@ -8,9 +8,9 @@ import (
 	"github.com/danielduartt/jackcompiler/parser"
 )
 
-// Programas do Project 11 que o compilador já deve compilar sem erro.
+// Os seis programas do Project 11 devem compilar sem erro.
 // A validação final é executar o .vm no VM Emulator (ver README).
-var programasProject11 = []string{"Seven", "ConvertToBin"}
+var programasProject11 = []string{"Seven", "ConvertToBin", "Square", "Average", "Pong", "ComplexArrays"}
 
 func TestCompilaProgramasProject11(t *testing.T) {
 	for _, programa := range programasProject11 {
