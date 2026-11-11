@@ -56,6 +56,10 @@ func TestXMLOficial(t *testing.T) {
 		if err != nil {
 			return err
 		}
+		// O Project 11 não tem gabaritos XML: a validação dele é no VM Emulator.
+		if d.IsDir() && caminho == filepath.Join(raiz, "11") {
+			return filepath.SkipDir
+		}
 		if d.IsDir() || !strings.HasSuffix(caminho, ".jack") {
 			return nil
 		}
