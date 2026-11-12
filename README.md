@@ -15,6 +15,11 @@ comandos VM, um por linha.
 - **Daniel Nunes Duarte** — Matrícula: 20250013550
 - **João Victor Oliveira** — Matrícula: 20260001375
 
+## Vídeo de apresentação
+
+<!-- Substituir pelo link do vídeo -->
+🎥 **Link do vídeo:** _em breve_
+
 ## Compilar e executar
 
 Requisito: Go 1.18 ou superior, sem dependências externas. Os comandos são
