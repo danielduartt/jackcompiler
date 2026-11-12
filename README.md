@@ -14,11 +14,11 @@ comandos VM, um por linha.
 
 - **Daniel Nunes Duarte** — Matrícula: 20250013550
 - **João Victor Oliveira** — Matrícula: 20260001375
+ 
+## Driver com vídeo
+### Obs: Não conseguimos upar o Vídeo no youtube, pois o vídeo ficou muito grandea por mais que tenha dado menos de 20 minutos. Tivemos que optar em salvar em uma pasta no driver
 
-## Vídeo de apresentação
-
-<!-- Substituir pelo link do vídeo -->
-🎥 **Link do vídeo:** _em breve_
+📁 **[Link do Driver:](https://drive.google.com/drive/folders/15dxc8gjfCfFyZTG15sC3x15bpNfDvePu?usp=sharing)** 
 
 ## Compilar e executar
 
